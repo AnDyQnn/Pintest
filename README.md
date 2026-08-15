@@ -45,7 +45,7 @@ source ~/.bashrc
 ## Быстрый старт
 
 ```bash
-# 1. список целей — по одному адресу на строку (пример: targets.sample.txt)
+# 1. список целей — по одному адресу на строку (пример: examples/targets.sample.txt)
 nano targets.txt
 
 # 2. запуск
@@ -77,7 +77,7 @@ python3 audit.py --stop                              # остановить
 | `--resume [папка]` | — | продолжить прерванный прогон |
 | `--install` / `--uninstall` | — | nmap + алиасы / убрать алиасы |
 
-Полный справочник со всеми деталями — в **[audit-manual.md](audit-manual.md)**.
+Полный справочник со всеми деталями — в **[docs/audit-manual.md](docs/audit-manual.md)**.
 
 ## Что на выходе (`audit_<дата>/`)
 
@@ -87,7 +87,7 @@ python3 audit.py --stop                              # остановить
 | `report.html` | интерактивный отчёт: список всех CVE, фильтры, поиск, ссылки на NVD |
 | `findings.csv` / `findings.json` | все находки таблицей / в JSON |
 
-Образец всех форматов — в папке [`sample-report/`](sample-report/).
+Образец всех форматов — в папке [`examples/sample-report/`](examples/sample-report/).
 
 ## Как работает (этапы)
 
@@ -98,10 +98,24 @@ python3 audit.py --stop                              # остановить
 5. Поиск уязвимостей (NSE `vuln,vulners` + enum) — только по хостам с открытыми портами.
 6. Сборка отчётов (md · html · csv · json).
 
+## Структура репозитория
+
+```
+Pintest/
+├── audit.py                    # основной продукт (один файл)
+├── README.md
+├── docs/                       # документация
+│   ├── audit-manual.md         #   полная инструкция по ключам
+│   └── pentest-guide.md        #   учебный гайд по методологии
+└── examples/                   # примеры
+    ├── targets.sample.txt      #   образец списка целей
+    └── sample-report/          #   образцы отчётов (md · html · csv · json)
+```
+
 ## Документация
 
-- **[audit-manual.md](audit-manual.md)** — полная инструкция по скрипту (все ключи, режимы, решение проблем).
-- **[pentest-guide.md](pentest-guide.md)** — учебный гайд по методологии сканирования.
+- **[docs/audit-manual.md](docs/audit-manual.md)** — полная инструкция по скрипту (все ключи, режимы, решение проблем).
+- **[docs/pentest-guide.md](docs/pentest-guide.md)** — учебный гайд по методологии сканирования.
 
 ## Дисклеймер
 
