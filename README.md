@@ -36,11 +36,28 @@
 
 ## Установка
 
+Репозиторий приватный — для клонирования нужен доступ (см. [ниже](#доступ-к-приватному-репозиторию)).
+
 ```bash
-# поставить nmap и прописать алиасы (audit / astatus / awatch / astop):
+# 1. склонировать проект
+git clone https://github.com/Reider0/Pintest.git
+cd Pintest
+# (или через GitHub CLI:  gh repo clone Reider0/Pintest && cd Pintest)
+
+# 2. поставить nmap и прописать алиасы (audit / astatus / awatch / astop)
 python3 audit.py --install
 source ~/.bashrc
+
+# 3. проверить, что всё на месте
+nmap --version
+python3 audit.py --help
 ```
+
+Внешних Python-пакетов ставить не нужно — только стандартная библиотека.
+Шаг 2 сам ставит `nmap` (apt/dnf/pacman) и добавляет короткие алиасы. Если `nmap`
+уже стоит — можно сразу к [быстрому старту](#быстрый-старт).
+
+> Обновить проект до свежей версии: `git pull` в папке `Pintest`.
 
 ## Быстрый старт
 
@@ -116,6 +133,13 @@ Pintest/
 
 - **[docs/audit-manual.md](docs/audit-manual.md)** — полная инструкция по скрипту (все ключи, режимы, решение проблем).
 - **[docs/pentest-guide.md](docs/pentest-guide.md)** — учебный гайд по методологии сканирования.
+
+## Доступ к приватному репозиторию
+
+Репозиторий приватный: его видит только владелец и приглашённые люди. Чтобы получить
+доступ — попроси владельца добавить твой GitHub-логин в **Settings → Collaborators**
+(или командой `gh api -X PUT repos/Reider0/Pintest/collaborators/ЛОГИН -f permission=pull`).
+После принятия приглашения репозиторий можно клонировать.
 
 ## Дисклеймер
 
