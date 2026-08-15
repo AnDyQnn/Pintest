@@ -440,9 +440,11 @@ def _save_effective(outdir, pargs, plabel, blocked, note=""):
     except OSError:
         pass
 
-def scan_services(alive, six, pargs, timing, acc, outdir, meta, do_tcp, do_udp):
-    """Этап 3: порты/сервисы (TCP и/или UDP), чанки ПАРАЛЛЕЛЬНО, отчёт по ходу."""
+def scan_services(alive, six, pargs, timing, acc, outdir, meta, do_tcp, do_udp, scripts=False):
+    """Этап 3: порты/сервисы (TCP и/или UDP), чанки ПАРАЛЛЕЛЬНО, отчёт по ходу.
+    scripts=True — совмещённый режим: сразу гоняет NSE-уязвимости (CVE по ходу)."""
     fam = "IPv6" if six else "IPv4"
+    label = "порты+CVE" if scripts else "порты/сервисы"
     if len(alive) == 0:
         print(f"   {warn('Живых ' + fam + ' нет — пропуск.')}"); return
     prev = _read_ipset(outdir / "svc_done.txt")
@@ -450,12 +452,13 @@ def scan_services(alive, six, pargs, timing, acc, outdir, meta, do_tcp, do_udp):
     total, done, ci = len(alive), len(alive) - len(todo), 0
     if not todo:
         return                                    # всё уже просканировано (resume)
+    sc = ["--script", SCRIPTS] if scripts else []
     specs = []
-    if do_tcp: specs.append(["-Pn", "-sV", timing, *pargs, "--open", "--host-timeout", "20m"])
-    if do_udp: specs.append(["-Pn", "-sU", "-sV", timing, "--top-ports", "50", "--open", "--host-timeout", "20m"])
+    if do_tcp: specs.append(["-Pn", "-sV", timing, *pargs, *sc, "--open", "--host-timeout", "20m"])
+    if do_udp: specs.append(["-Pn", "-sU", "-sV", timing, "--top-ports", "50", *sc, "--open", "--host-timeout", "20m"])
     nchunks = (len(todo) + CHUNK - 1) // CHUNK
     _STAT.pop("alive", None)                     # убрать залипшее «живых» из discovery
-    stat_set(stage=3, phase=f"порты/сервисы {fam}", done=done, total=total,
+    stat_set(stage=3, phase=f"{label} {fam}", done=done, total=total,
              pstart=time.time(), chunk=0, chunks=nchunks)
     _PSTART[0] = time.time()
     with ThreadPoolExecutor(max_workers=PARALLEL) as ex:
@@ -468,10 +471,12 @@ def scan_services(alive, six, pargs, timing, acc, outdir, meta, do_tcp, do_udp):
             done += len(futs[fut]); ci += 1
             _safe_build(outdir, meta, acc)
             nopen = sum(1 for h in acc.values() if h["ports"])
-            stat_set(stage=3, phase=f"порты/сервисы {fam}", done=done, total=total,
-                     openh=nopen, chunk=ci, chunks=nchunks)
-            prog(f"порты/сервисы {fam}", done, total,
-                 f"чанк {CB}{ci}/{nchunks}{CR} · с портами: {num(nopen)} · {dim('отчёт ⟳')}")
+            kw = {"cves": sum(len(h["cves"]) for h in acc.values())} if scripts else {}
+            stat_set(stage=3, phase=f"{label} {fam}", done=done, total=total,
+                     openh=nopen, chunk=ci, chunks=nchunks, **kw)
+            cve_txt = f" · CVE: {num(kw['cves'])}" if scripts else ""
+            prog(f"{label} {fam}", done, total,
+                 f"чанк {CB}{ci}/{nchunks}{CR} · с портами: {num(nopen)}{cve_txt} · {dim('отчёт ⟳')}")
     prog_done()
 
 def scan_vulns(hosts, six, pargs, timing, acc, outdir, meta, do_tcp, do_udp):
@@ -939,6 +944,10 @@ def build_parser():
             "  (по умолчанию) перед сканом пробуем порты на выборке живых хостов\n"
             "                 и отсеиваем те, что режет провайдер/VPN (filtered)\n"
             "  --no-preflight отключить пробу (сканировать весь набор как есть)\n\n"
+            "УЯЗВИМОСТИ:\n"
+            "  (по умолчанию) этап 3 (порты) -> затем этап 4 (CVE) отдельным проходом\n"
+            "  --combined     порты + CVE одним проходом: находки CVE идут по ходу,\n"
+            "                 не в самом конце (для пробива нужнее раньше)\n\n"
             "ФОН (демон):\n"
             "  -d              запустить в фоне\n"
             "  --status [п]    показать статус один раз\n"
@@ -967,6 +976,8 @@ def build_parser():
                    help="пропустить host discovery — считать все цели живыми (как nmap -Pn)")
     p.add_argument("--no-preflight", dest="no_preflight", action="store_true",
                    help="не проверять доступность портов перед сканом (без отсева фильтрации)")
+    p.add_argument("--combined", action="store_true",
+                   help="порты и уязвимости одним проходом — CVE появляются по ходу (этап 3+4 вместе)")
     p.add_argument("--resume", nargs="?", const="", metavar="ПАПКА",
                    help="продолжить прерванный прогон (папка audit_<дата> или последний)")
     p.add_argument("-d", "--daemon", action="store_true")
@@ -1016,6 +1027,7 @@ def main():
         src, pargs, plabel = o["src"], o["pargs"], o["plabel"]
         timing, do_tcp, do_udp, skip_disc = o["timing"], o["do_tcp"], o["do_udp"], o["skip_disc"]
         do_preflight = o.get("preflight", True)
+        combined = o.get("combined", False)
     else:
         src = a.targets
         if not src:
@@ -1033,12 +1045,13 @@ def main():
             print(f"{bad('[!]')} нельзя одновременно --no-tcp и --no-udp — нечего сканировать"); sys.exit(1)
         skip_disc = a.skip_disc
         do_preflight = not a.no_preflight
+        combined = a.combined
         outdir = Path(os.environ.get("AUDIT_OUT") or f"audit_{datetime.now():%Y%m%d_%H%M%S}")
         outdir.mkdir(exist_ok=True)
         (outdir / "opts.json").write_text(json.dumps({
             "src": str(src), "pargs": pargs, "plabel": plabel, "timing": timing,
             "do_tcp": do_tcp, "do_udp": do_udp, "skip_disc": skip_disc,
-            "preflight": do_preflight}, ensure_ascii=False), encoding="utf-8")
+            "preflight": do_preflight, "combined": combined}, ensure_ascii=False), encoding="utf-8")
 
     # --- демон: перезапуск в фоне ---
     if a.daemon and not worker:
@@ -1057,9 +1070,9 @@ def main():
     if worker:
         (outdir / "audit.pid").write_text(str(os.getpid()))
 
-    run_pipeline(src, outdir, pargs, plabel, timing, do_tcp, do_udp, skip_disc, do_preflight, resume)
+    run_pipeline(src, outdir, pargs, plabel, timing, do_tcp, do_udp, skip_disc, do_preflight, combined, resume)
 
-def run_pipeline(src, outdir, pargs, plabel, timing, do_tcp, do_udp, skip_disc, do_preflight=True, resume=False):
+def run_pipeline(src, outdir, pargs, plabel, timing, do_tcp, do_udp, skip_disc, do_preflight=True, combined=False, resume=False):
     stamp = outdir.name.replace("audit_", "")
     phase = _get_phase(outdir) if resume else ""
     acc = _load_results(outdir) if resume else {}
@@ -1112,29 +1125,43 @@ def run_pipeline(src, outdir, pargs, plabel, timing, do_tcp, do_udp, skip_disc, 
         _safe_build(outdir, meta, acc)
 
     mode = "TCP + UDP" if do_tcp and do_udp else ("только TCP" if do_tcp else "только UDP")
-    banner(f"Этап 3/5 — порты и сервисы ({mode}), чанками по {CHUNK}")
-    if resume and phase in ("vulns", "done"):
-        print(f"   {dim('этап уже пройден (resume) — пропуск')}")
+    if combined:
+        # совмещённый режим: порты + версии + NSE-уязвимости одним проходом (CVE по ходу)
+        banner(f"Этап 3+4/5 — порты + уязвимости одним проходом ({mode}), чанками по {CHUNK}")
+        if resume and phase == "done":
+            print(f"   {dim('этап уже пройден (resume) — пропуск')}")
+        else:
+            _set_phase(outdir, "services")
+            scan_services(alive4, False, pargs, timing, acc, outdir, meta, do_tcp, do_udp, scripts=True)
+            scan_services(alive6, True,  pargs, timing, acc, outdir, meta, do_tcp, do_udp, scripts=True)
+        nopen = sum(1 for h in acc.values() if h["ports"])
+        ncve = sum(len(h["cves"]) for h in acc.values())
+        print(f"   Хостов с портами: {num(nopen)} {dim('·')} CVE-находок: {num(ncve)}")
+        overall(4)
     else:
-        _set_phase(outdir, "services")
-        scan_services(alive4, False, pargs, timing, acc, outdir, meta, do_tcp, do_udp)
-        scan_services(alive6, True,  pargs, timing, acc, outdir, meta, do_tcp, do_udp)
-    nopen = sum(1 for h in acc.values() if h["ports"])
-    print(f"   Хостов с открытыми портами: {num(nopen)}")
-    overall(3)
+        banner(f"Этап 3/5 — порты и сервисы ({mode}), чанками по {CHUNK}")
+        if resume and phase in ("vulns", "done"):
+            print(f"   {dim('этап уже пройден (resume) — пропуск')}")
+        else:
+            _set_phase(outdir, "services")
+            scan_services(alive4, False, pargs, timing, acc, outdir, meta, do_tcp, do_udp)
+            scan_services(alive6, True,  pargs, timing, acc, outdir, meta, do_tcp, do_udp)
+        nopen = sum(1 for h in acc.values() if h["ports"])
+        print(f"   Хостов с открытыми портами: {num(nopen)}")
+        overall(3)
 
-    banner(f"Этап 4/5 — поиск уязвимостей (CVE) на хостах с портами ({mode})")
-    if resume and phase == "done":
-        print(f"   {dim('этап уже пройден (resume) — пропуск')}")
-    else:
-        _set_phase(outdir, "vulns")
-        v4o = [ip for ip, h in acc.items() if h["fam"] == "IPv4" and h["ports"]]
-        v6o = [ip for ip, h in acc.items() if h["fam"] == "IPv6" and h["ports"]]
-        scan_vulns(v4o, False, pargs, timing, acc, outdir, meta, do_tcp, do_udp)
-        scan_vulns(v6o, True,  pargs, timing, acc, outdir, meta, do_tcp, do_udp)
-    ncve = sum(len(h["cves"]) for h in acc.values())
-    print(f"   CVE-находок: {num(ncve)}")
-    overall(4)
+        banner(f"Этап 4/5 — поиск уязвимостей (CVE) на хостах с портами ({mode})")
+        if resume and phase == "done":
+            print(f"   {dim('этап уже пройден (resume) — пропуск')}")
+        else:
+            _set_phase(outdir, "vulns")
+            v4o = [ip for ip, h in acc.items() if h["fam"] == "IPv4" and h["ports"]]
+            v6o = [ip for ip, h in acc.items() if h["fam"] == "IPv6" and h["ports"]]
+            scan_vulns(v4o, False, pargs, timing, acc, outdir, meta, do_tcp, do_udp)
+            scan_vulns(v6o, True,  pargs, timing, acc, outdir, meta, do_tcp, do_udp)
+        ncve = sum(len(h["cves"]) for h in acc.values())
+        print(f"   CVE-находок: {num(ncve)}")
+        overall(4)
 
     banner("Этап 5/5 — сборка отчёта (md · html · csv · json)")
     _set_phase(outdir, "done")
