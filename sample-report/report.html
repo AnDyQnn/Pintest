@@ -1,0 +1,140 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Отчёт аудита</title>
+<style>
+:root{--bg:#f6f7fb;--fg:#16181d;--card:#fff;--bd:#e2e5ec;--muted:#6b7280;--accent:#5b7cfa}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1116;--fg:#e7e9ee;--card:#171a21;--bd:#2a2f3a;--muted:#9aa1ad;--accent:#7c95ff}}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,Segoe UI,Roboto,sans-serif;margin:0;padding:0 20px 60px}
+.wrap{max-width:1040px;margin:auto}
+.hero{background:linear-gradient(120deg,#5b7cfa,#9b5bfa 55%,#e4572e);color:#fff;border-radius:0 0 18px 18px;padding:26px 24px;margin:0 -20px 18px;box-shadow:0 8px 30px rgba(0,0,0,.18)}
+.hero h1{margin:0 0 6px;font-size:1.7em}.hero .meta{opacity:.92;font-size:.9em}
+h2{border-bottom:2px solid var(--bd);padding-bottom:.25em;margin-top:1.7em}
+table{border-collapse:collapse;width:100%;margin:.5em 0}th,td{border:1px solid var(--bd);padding:6px 10px;text-align:left}
+th{background:rgba(128,128,128,.12)}
+pre{background:rgba(128,128,128,.10);padding:10px;border-radius:8px;overflow-x:auto;font-size:.9em}
+.muted{color:var(--muted)}a{color:var(--accent)}
+.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.78em;font-weight:700;color:#fff;vertical-align:middle}
+.crit{background:#b10f2e}.high{background:#e4572e}.med{background:#c99700}.low{background:#3a8a3a}.info{background:#6c7684}.fam{background:#3d5a80}
+.stat{display:inline-flex;gap:6px;align-items:center;margin-right:12px}
+.filterbar{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--bd);padding:12px 0;margin:6px 0 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;backdrop-filter:blur(6px)}
+.fgroup{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.lbl{color:var(--muted);font-size:.82em}
+.chip{border:1px solid var(--bd);background:var(--card);color:var(--fg);padding:5px 13px;border-radius:999px;cursor:pointer;font-size:.83em;opacity:.5;transition:.15s;user-select:none}
+.chip:hover{transform:translateY(-1px)}.chip.on{opacity:1;font-weight:700}
+.chip.crit.on{background:#b10f2e;color:#fff;border-color:#b10f2e}.chip.high.on{background:#e4572e;color:#fff;border-color:#e4572e}
+.chip.med.on{background:#c99700;color:#fff;border-color:#c99700}.chip.low.on{background:#3a8a3a;color:#fff;border-color:#3a8a3a}.chip.info.on{background:#6c7684;color:#fff;border-color:#6c7684}
+.search{flex:1;min-width:200px;padding:7px 13px;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--fg);font-size:.9em}
+.count{color:var(--muted);font-size:.83em;margin-left:auto;white-space:nowrap}
+.card{background:var(--card);border:1px solid var(--bd);border-left:5px solid var(--accent);border-radius:12px;padding:16px 18px;margin:14px 0;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.card:hover{transform:translateY(-2px);box-shadow:0 6px 22px rgba(0,0,0,.13)}
+.host-card[data-sev="Critical"]{border-left-color:#b10f2e}.host-card[data-sev="High"]{border-left-color:#e4572e}
+.host-card[data-sev="Medium"]{border-left-color:#c99700}.host-card[data-sev="Low"]{border-left-color:#3a8a3a}.host-card[data-sev="Info"]{border-left-color:#6c7684}
+.card h3{margin:.1em 0 .6em}.card h4{margin:.8em 0 .3em;font-size:.9em;color:var(--muted)}
+.hname{font-family:ui-monospace,Consolas,monospace}.empty{padding:24px;text-align:center;color:var(--muted)}
+.cvebox{margin:14px 0;border:1px solid var(--bd);border-radius:12px;background:var(--card);padding:10px 14px}
+.cvebox summary{cursor:pointer;font-weight:700}.cvelist{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip.cve{opacity:1;font-weight:600}.chip.cve.act{outline:2px solid var(--accent);border-color:var(--accent)}
+</style></head><body><div class="wrap">
+<div class='hero'><h1>🛡 Отчёт аудита безопасности</h1><div class='meta'>Дата: 20260815_101500 · Источник: targets.txt · Порты: --top-ports 100</div></div>
+<h2>Сводка</h2><table><tr><th>Показатель</th><th>IPv4</th><th>IPv6</th></tr><tr><td>Целей в списке</td><td>512</td><td>8</td></tr><tr><td>Живых хостов</td><td>3</td><td>1</td></tr></table>
+<h2>Итог</h2><p><span class='stat'><span class='badge crit'>Critical</span> 1</span><span class='stat'><span class='badge high'>High</span> 2</span><span class='stat'><span class='badge med'>Medium</span> 2</span><span class='stat'><span class='badge low'>Low</span> 0</span></p>
+<p>Хостов с уязвимостями: <b>3</b></p>
+<h3>Топ-риск хосты</h3><table><tr><th>CVSS</th><th>Хост</th><th>Тип</th></tr>
+<tr><td>10.0</td><td>203.0.113.20</td><td>IPv4</td></tr>
+<tr><td>8.5</td><td>45.33.32.156</td><td>IPv4</td></tr>
+<tr><td>7.8</td><td>2001:db8::10</td><td>IPv6</td></tr>
+</table>
+<details class='cvebox' open><summary>Все найденные CVE (5) — клик по CVE фильтрует хосты ниже</summary><div class='cvelist'>
+<button class='chip cve' data-cve='CVE-2011-2523'>CVE-2011-2523 <span class='badge crit'>CVSS 10.0</span> · 1 хост.</button>
+<button class='chip cve' data-cve='CVE-2015-5600'>CVE-2015-5600 <span class='badge high'>CVSS 8.5</span> · 1 хост.</button>
+<button class='chip cve' data-cve='CVE-2015-5477'>CVE-2015-5477 <span class='badge high'>CVSS 7.8</span> · 1 хост.</button>
+<button class='chip cve' data-cve='CVE-2015-6564'>CVE-2015-6564 <span class='badge med'>CVSS 6.9</span> · 1 хост.</button>
+<button class='chip cve' data-cve='CVE-2016-0777'>CVE-2016-0777 <span class='badge med'>CVSS 5.0</span> · 1 хост.</button>
+</div></details>
+<h2>Хосты</h2>
+<div class="filterbar">
+  <div class="fgroup"><span class="lbl">Критичность:</span>
+    <button class="chip crit on" data-sev="Critical">Critical</button>
+    <button class="chip high on" data-sev="High">High</button>
+    <button class="chip med on" data-sev="Medium">Medium</button>
+    <button class="chip low on" data-sev="Low">Low</button>
+    <button class="chip info on" data-sev="Info">Info</button>
+  </div>
+  <div class="fgroup"><span class="lbl">Тип:</span>
+    <button class="chip on" data-fam="IPv4">IPv4</button>
+    <button class="chip on" data-fam="IPv6">IPv6</button>
+  </div>
+  <input id="q" class="search" placeholder="поиск: хост / CVE / сервис…">
+  <button id="reset" class="chip on">сброс</button>
+  <span class="count">показано <b id="shown">0</b> из <b id="total">0</b></span>
+</div>
+<div id="cards">
+<div class='card host-card' data-fam='IPv4' data-sev='Critical'>
+<h3><span class='hname'>203.0.113.20</span> <span class='badge fam'>IPv4</span> <span class='badge crit'>Critical · CVSS 10.0</span></h3>
+<h4>Открытые порты и сервисы</h4><pre>
+21/tcp open  ftp      vsftpd 2.3.4
+3306/tcp open  mysql    MySQL 5.5.40
+</pre>
+<h4>Уязвимости (CVE / CVSS)</h4><table><tr><th>CVE</th><th>CVSS</th><th>Критичность</th></tr>
+<tr><td><a href='https://nvd.nist.gov/vuln/detail/CVE-2011-2523' target='_blank' rel='noopener'>CVE-2011-2523</a></td><td>10.0</td><td><span class='badge crit'>Critical</span></td></tr>
+</table>
+<h4>Автооценка</h4><ul><li>Критичность: <b>Critical</b> (макс. CVSS 10.0)</li><li>Риск: критично: возможна полная компрометация узла</li><li>Рекомендация: срочно обновить затронутый сервис до актуальной версии; до обновления — ограничить доступ к порту фаерволом или отключить сервис, если не нужен</li></ul></div>
+<div class='card host-card' data-fam='IPv4' data-sev='High'>
+<h3><span class='hname'>45.33.32.156</span> <span class='badge fam'>IPv4</span> <span class='badge high'>High · CVSS 8.5</span></h3>
+<h4>Открытые порты и сервисы</h4><pre>
+22/tcp open  ssh      OpenSSH 6.6.1p1
+80/tcp open  http     Apache httpd 2.4.7
+</pre>
+<h4>Уязвимости (CVE / CVSS)</h4><table><tr><th>CVE</th><th>CVSS</th><th>Критичность</th></tr>
+<tr><td><a href='https://nvd.nist.gov/vuln/detail/CVE-2015-5600' target='_blank' rel='noopener'>CVE-2015-5600</a></td><td>8.5</td><td><span class='badge high'>High</span></td></tr>
+<tr><td><a href='https://nvd.nist.gov/vuln/detail/CVE-2015-6564' target='_blank' rel='noopener'>CVE-2015-6564</a></td><td>6.9</td><td><span class='badge med'>Medium</span></td></tr>
+<tr><td><a href='https://nvd.nist.gov/vuln/detail/CVE-2016-0777' target='_blank' rel='noopener'>CVE-2016-0777</a></td><td>5.0</td><td><span class='badge med'>Medium</span></td></tr>
+</table>
+<h4>Автооценка</h4><ul><li>Критичность: <b>High</b> (макс. CVSS 8.5)</li><li>Риск: высокий: вероятна компрометация сервиса/узла</li><li>Рекомендация: срочно обновить затронутый сервис до актуальной версии; до обновления — ограничить доступ к порту фаерволом или отключить сервис, если не нужен</li></ul></div>
+<div class='card host-card' data-fam='IPv6' data-sev='High'>
+<h3><span class='hname'>2001:db8::10</span> <span class='badge fam'>IPv6</span> <span class='badge high'>High · CVSS 7.8</span></h3>
+<h4>Открытые порты и сервисы</h4><pre>
+53/udp open  domain   ISC BIND 9.9.5
+</pre>
+<h4>Уязвимости (CVE / CVSS)</h4><table><tr><th>CVE</th><th>CVSS</th><th>Критичность</th></tr>
+<tr><td><a href='https://nvd.nist.gov/vuln/detail/CVE-2015-5477' target='_blank' rel='noopener'>CVE-2015-5477</a></td><td>7.8</td><td><span class='badge high'>High</span></td></tr>
+</table>
+<h4>Автооценка</h4><ul><li>Критичность: <b>High</b> (макс. CVSS 7.8)</li><li>Риск: высокий: вероятна компрометация сервиса/узла</li><li>Рекомендация: срочно обновить затронутый сервис до актуальной версии; до обновления — ограничить доступ к порту фаерволом или отключить сервис, если не нужен</li></ul></div>
+<div class='empty' id='nomatch' style='display:none'>ничего не найдено под фильтр</div></div>
+<h2>Проверка перед сдачей</h2><ul><li>CVE/CVSS/критичность проставлены автоматически (nmap vulners).</li><li>Подтвердить вручную — возможны ложные срабатывания.</li></ul>
+</div>
+<script>
+(function(){
+  var cards=[].slice.call(document.querySelectorAll('.host-card'));
+  var sev={Critical:1,High:1,Medium:1,Low:1,Info:1}, fam={IPv4:1,IPv6:1}, cve={}, q='';
+  var shown=document.getElementById('shown'), nomatch=document.getElementById('nomatch');
+  document.getElementById('total').textContent=cards.length;
+  function cveOn(){for(var k in cve)if(cve[k])return true;return false;}
+  function apply(){
+    var n=0, ca=cveOn();
+    cards.forEach(function(c){
+      var t=c.textContent, tl=t.toLowerCase();
+      var okc=!ca; if(ca){for(var k in cve){if(cve[k]&&t.indexOf(k)>-1){okc=true;break;}}}
+      var ok=sev[c.dataset.sev]&&fam[c.dataset.fam]&&okc&&(q===''||tl.indexOf(q)>-1);
+      c.style.display=ok?'':'none'; if(ok)n++;
+    });
+    shown.textContent=n; nomatch.style.display=n?'none':'';
+  }
+  function bind(sel,map){document.querySelectorAll(sel).forEach(function(b){
+    b.addEventListener('click',function(){var k=b.dataset.sev||b.dataset.fam; map[k]=map[k]?0:1; b.classList.toggle('on'); apply();});
+  });}
+  bind('.chip[data-sev]',sev); bind('.chip[data-fam]',fam);
+  document.querySelectorAll('.chip.cve').forEach(function(b){
+    b.addEventListener('click',function(){var k=b.dataset.cve; cve[k]=cve[k]?0:1; b.classList.toggle('act'); apply();});
+  });
+  document.getElementById('q').addEventListener('input',function(ev){q=ev.target.value.toLowerCase().trim(); apply();});
+  document.getElementById('reset').addEventListener('click',function(){
+    Object.keys(sev).forEach(function(k){sev[k]=1;}); Object.keys(fam).forEach(function(k){fam[k]=1;}); cve={}; q='';
+    document.getElementById('q').value='';
+    document.querySelectorAll('.chip[data-sev],.chip[data-fam]').forEach(function(b){b.classList.add('on');});
+    document.querySelectorAll('.chip.cve').forEach(function(b){b.classList.remove('act');});
+    apply();
+  });
+  apply();
+})();
+</script>
+</body></html>

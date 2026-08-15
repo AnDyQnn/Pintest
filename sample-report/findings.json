@@ -1,0 +1,37 @@
+[
+  {
+    "family": "IPv4",
+    "host": "45.33.32.156",
+    "cve": "CVE-2015-5600",
+    "cvss": 8.5,
+    "severity": "High"
+  },
+  {
+    "family": "IPv4",
+    "host": "45.33.32.156",
+    "cve": "CVE-2016-0777",
+    "cvss": 5.0,
+    "severity": "Medium"
+  },
+  {
+    "family": "IPv4",
+    "host": "45.33.32.156",
+    "cve": "CVE-2015-6564",
+    "cvss": 6.9,
+    "severity": "Medium"
+  },
+  {
+    "family": "IPv4",
+    "host": "203.0.113.20",
+    "cve": "CVE-2011-2523",
+    "cvss": 10.0,
+    "severity": "Critical"
+  },
+  {
+    "family": "IPv6",
+    "host": "2001:db8::10",
+    "cve": "CVE-2015-5477",
+    "cvss": 7.8,
+    "severity": "High"
+  }
+]

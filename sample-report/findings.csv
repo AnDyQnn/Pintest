@@ -1,0 +1,6 @@
+family,host,cve,cvss,severity
+IPv4,45.33.32.156,CVE-2015-5600,8.5,High
+IPv4,45.33.32.156,CVE-2016-0777,5.0,Medium
+IPv4,45.33.32.156,CVE-2015-6564,6.9,Medium
+IPv4,203.0.113.20,CVE-2011-2523,10.0,Critical
+IPv6,2001:db8::10,CVE-2015-5477,7.8,High

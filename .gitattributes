@@ -1,0 +1,10 @@
+# Единообразные переводы строк. Скрипты — всегда LF (запускаются на Linux/Kali/VPS).
+* text=auto eol=lf
+
+*.py   text eol=lf
+*.sh   text eol=lf
+*.md   text eol=lf
+*.txt  text eol=lf
+*.json text eol=lf
+*.csv  text eol=lf
+*.html text eol=lf
