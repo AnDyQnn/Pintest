@@ -311,28 +311,30 @@ def _scan_chunk(ch, specs, six):
 _FILTERED = {"filtered", "open|filtered", "closed|filtered"}   # признак блокировки провайдером/VPN
 
 def _port_states(root):
-    """(per_port, extra): состояния портов по всем хостам XML.
-    per_port = {portid: set(состояний)} — порты, перечисленные ПОШТУЧНО;
-    extra    = {state: макс.count} — схлопнутые <extraports> (nmap сворачивает
-    пачку одинаковых портов в сводку «Not shown: N closed/filtered ports»)."""
-    agg, extra = {}, {}
+    """Записи ПО ХОСТАМ: [{'ports': {portid: set(состояний)}, 'extra': {state: count}}].
+    ports — порты, перечисленные ПОШТУЧНО; extra — схлопнутые <extraports> (nmap
+    сворачивает пачку одинаковых портов в сводку «Not shown: N closed/filtered ports»).
+    Держим по хостам, чтобы отличать «набор режется у всех» от «часть хостов молчит»."""
+    recs = []
     if root is None:
-        return agg, extra
+        return recs
     for h in root.findall("host"):
         pel = h.find("ports")
         if pel is None:
             continue
+        pp, ex = {}, {}
         for p in pel.findall("port"):
             stt = p.find("state")
             if stt is None:
                 continue
-            agg.setdefault(int(p.get("portid")), set()).add(stt.get("state"))
+            pp.setdefault(int(p.get("portid")), set()).add(stt.get("state"))
         for ep in pel.findall("extraports"):
             st = ep.get("state") or "?"
             try: cnt = int(ep.get("count", 0) or 0)
             except (TypeError, ValueError): cnt = 0
-            extra[st] = max(extra.get(st, 0), cnt)         # берём макс по хостам выборки
-    return agg, extra
+            ex[st] = ex.get(st, 0) + cnt
+        recs.append({"ports": pp, "extra": ex})
+    return recs
 
 def _sample(alive, k):
     """Равномерная выборка до k адресов (не только первые подряд)."""
@@ -377,58 +379,56 @@ def preflight_ports(alive4, alive6, pargs, plabel, timing, outdir):
     spec = ["-sT", "-Pn", "-n", timing, *probe, "--host-timeout", "3m"]
     stat_set(stage=3, phase="проба портов (префлайт)", done=0, total=1)
     _PSTART[0] = time.time()
-    states, extra = {}, {}
+    recs = []
     for hosts, six in fam_hosts:
-        got, gotextra = _port_states(nmap_xml(hosts, spec, six=six))
-        for pid, sset in got.items():
-            states.setdefault(pid, set()).update(sset)
-        for st, cnt in gotextra.items():
-            extra[st] = max(extra.get(st, 0), cnt)
-    probed = sorted(states)
-    extra_filtered = extra.get("filtered", 0) + extra.get("open|filtered", 0)
-    extra_closed = extra.get("closed", 0)
-    if not probed and not extra_filtered and not extra_closed:   # совсем нет ответа
+        recs += _port_states(nmap_xml(hosts, spec, six=six))
+    if not recs:                                     # ни один хост не ответил на пробу
         stat_set(stage=3, blocked="", blocked_n=0)
         _save_effective(outdir, pargs, plabel, [], note="хосты не ответили на пробу")
         print(f"   {dim('префлайт: хосты не ответили на пробу — список портов без изменений')}")
         return pargs, plabel, []
-    blocked = [p for p in probed if states[p] and states[p] <= _FILTERED]     # поштучно filtered
-    reachable = [p for p in probed if p not in blocked]                       # поштучно open/closed
-    any_reachable = bool(reachable) or extra_closed > 0
-    total_block = (extra_filtered + len(blocked) > 0) and not any_reachable   # доступного нет — только фильтр
-    n_s = sum(len(h) for h, _ in fam_hosts)
-    print(f"   {dim('проба портов на выборке ' + str(n_s) + ' хостов: поштучно доступно ')}"
-          f"{ok(len(reachable))}{dim(', зафильтровано ')}{bad(len(blocked)) if blocked else num(0)}")
-    collapsed = []
-    if extra_closed:   collapsed.append(str(extra_closed) + " closed (доступны)")
-    if extra_filtered: collapsed.append(str(extra_filtered) + " filtered")
-    if collapsed:
-        print(f"   {dim('+ nmap схлопнул: ' + ', '.join(collapsed))}")
+    # поштучные порты, объединённые по всем хостам выборки
+    states = {}
+    for r in recs:
+        for pid, sset in r["ports"].items():
+            states.setdefault(pid, set()).update(sset)
+    probed = sorted(states)
+    def _responsive(r):        # хост «ответил», если есть open/closed (поштучно или в сводке)
+        if any(s & {"open", "closed", "unfiltered"} for s in r["ports"].values()):
+            return True
+        return bool(r["extra"].get("closed", 0) or r["extra"].get("open", 0))
+    n_hosts = len(recs)
+    n_resp = sum(1 for r in recs if _responsive(r))
+    n_silent = n_hosts - n_resp                      # хосты, что молчат/фильтруют всё (лежат или дропают)
+    collapsed_any = any(r["extra"] for r in recs)    # были ли схлопнутые порты (тогда поштучно видим не всё)
+    any_filtered = (any(states[p] <= _FILTERED for p in probed)
+                    or any(r["extra"].get("filtered", 0) or r["extra"].get("open|filtered", 0) for r in recs))
+    blocked = [p for p in probed if states[p] and states[p] <= _FILTERED]     # filtered у ВСЕХ, кто перечислил поштучно
+    reachable = [p for p in probed if p not in blocked]
+    open_ports = [p for p in probed if "open" in states[p]]
+    total_block = n_resp == 0                        # никто не ответил open/closed -> полный фильтр
+    # --- вывод: по ХОСТАМ (честно), а не по «max количеству портов» ---
+    print(f"   {dim('проба портов: выборка ' + str(n_hosts) + ' хостов → ответили ')}"
+          f"{ok(n_resp)}{dim(', молчат/фильтруют ')}{warn(n_silent) if n_silent else num(0)}")
+    if open_ports:
+        print(f"   {dim('открытые порты на выборке:')} {CGR}{_ports_compact(open_ports)}{CR}")
     if blocked:
-        print(f"   {bad('⨯ заблокированы провайдером/фаерволом:')} {CYE}{_ports_compact(blocked)}{CR}")
-    if extra_filtered and not total_block:
-        print(f"   {warn('⚠ ещё ~' + str(extra_filtered) + ' портов набора режется (filtered) — поштучно не перечислить')}")
-    # статус: строка заблокированных (поштучно — точные номера; иначе — счётчик схлопнутых)
-    if blocked:
-        blk_str, blk_n = _ports_compact(blocked), len(blocked)
-    elif extra_filtered:
-        blk_str, blk_n = f"~{extra_filtered} (схлопнуто)", extra_filtered
-    else:
-        blk_str, blk_n = "", 0
-    stat_set(stage=3, blocked=blk_str, blocked_n=blk_n)
-    # урезаем набор ТОЛЬКО когда видим каждый порт поштучно (нет схлопнутых) — иначе можно
+        print(f"   {bad('⨯ заблокированы (filtered у всех в выборке):')} {CYE}{_ports_compact(blocked)}{CR}")
+    # статус: показываем только НАДЁЖНЫЙ блок (поштучный filtered), а не по-хостовой шум
+    stat_set(stage=3, blocked=_ports_compact(blocked) if blocked else "", blocked_n=len(blocked))
+    # урезаем набор только при ПОШТУЧНОЙ видимости (нет схлопнутых) — иначе можно
     # выкинуть порт, закрытый на выборке, но открытый на других хостах
-    if prune and blocked and not total_block and not extra_closed and not extra_filtered:
+    if prune and blocked and not total_block and not collapsed_any:
         new_pargs = ["-p", _ports_compact(reachable, cap=10 ** 9)]
         new_plabel = f"-p {_ports_compact(reachable)} ({len(reachable)} шт., отсеяно {len(blocked)})"
         _save_effective(outdir, new_pargs, new_plabel, blocked)
         print(f"   {ok('✔ сканирую только доступные порты:')} {num(len(reachable))} шт.")
         return new_pargs, new_plabel, blocked
     if total_block:
-        print(f"   {bad('[!] Доступных портов не нашлось — только filtered. Похоже на VPN/полный фильтр.')}")
-        print(f"   {dim('набор НЕ урезаю (нечего оставить); проверь VPN/фаервол. Отключить пробу: --no-preflight')}")
-    elif blocked or extra_filtered:
-        print(f"   {dim('набор не урезаю — сканирую как задано (часть портов схлопнута/набор большой; диагностика выше)')}")
+        print(f"   {bad('[!] Ни один хост выборки не ответил (open/closed) — только filtered/тихо.')}")
+        print(f"   {dim('похоже на полный фильтр (VPN/фаервол) или хосты не слушают порты. набор не меняю; отключить пробу: --no-preflight')}")
+    elif any_filtered:
+        print(f"   {dim('часть портов/хостов отвечает filtered (фаервол хоста или провайдер) — набор не меняю, только диагностика')}")
     _save_effective(outdir, pargs, plabel, blocked, note=("полный фильтр" if total_block else ""))
     return pargs, plabel, blocked
 
