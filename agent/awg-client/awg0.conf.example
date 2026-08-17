@@ -1,0 +1,24 @@
+# Пример клиентского конфига AmneziaWG (awg0). РЕАЛЬНЫЙ конфиг генерирует ХОСТ и
+# вбрасывает по SSH в /etc/amnezia/amneziawg/awg0.conf при provisioning. Здесь — формат.
+#
+# Инвертированный туннель: агент = клиент, сам дозванивается к хосту (Endpoint).
+# AWG-параметры (Jc..H4) обфускации ДОЛЖНЫ совпадать с серверными.
+[Interface]
+PrivateKey = <agent_private_key>
+Address = 10.9.0.2/24
+# --- обфускация «амнезия» (одинаковая на сервере и клиенте) ---
+Jc = 4
+Jmin = 40
+Jmax = 70
+S1 = 50
+S2 = 100
+H1 = 1234567890
+H2 = 1234567891
+H3 = 1234567892
+H4 = 1234567893
+
+[Peer]
+PublicKey = <host_public_key>
+Endpoint = <host_ip>:51820
+AllowedIPs = 10.9.0.0/24
+PersistentKeepalive = 25

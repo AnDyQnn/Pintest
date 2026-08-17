@@ -1,0 +1,23 @@
+# agent/docker-compose.yml — поднятие ОДНОЙ ноды на реальном сервере (install.sh).
+# В докер-лабе ноды поднимает lab/docker-compose.yml тем же образом и образом.
+services:
+  agent:
+    build:
+      context: ..            # корень репо — нужны core/, exploits/, agent/
+      dockerfile: agent/Dockerfile
+    image: pintest-agent:latest
+    container_name: pintest-agent
+    hostname: ${AGENT_NAME:-pintest-agent}
+    restart: "no"            # после self-destruct нода остаётся выключенной
+    cap_add:
+      - NET_ADMIN            # userspace AmneziaWG + маршрутизация
+    devices:
+      - /dev/net/tun
+    env_file:
+      - config.env
+    ports:
+      - "2222:22"            # SSH для provisioning с хоста
+      - "9101:9101"          # API агента (в реале доступен только по туннелю)
+    volumes:
+      # состояние/результаты/лут — на диск сервера, не внутри контейнера
+      - ./state:/opt/pintest/agent/state
