@@ -76,6 +76,11 @@ CREATE TABLE IF NOT EXISTS captures (
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY, value JSONB
 );
+CREATE TABLE IF NOT EXISTS users (
+    login       TEXT PRIMARY KEY,
+    pw_hash     TEXT NOT NULL,
+    created_at  DOUBLE PRECISION DEFAULT extract(epoch from now())
+);
 """
 
 

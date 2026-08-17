@@ -18,7 +18,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from . import (agents, backup, config, db, diff, exploitation, orchestrator,
-               reports, targets, updates, vpn)
+               reports, targets, updates, users, vpn)
 
 app = FastAPI(title="pintest-host", version=config.VERSION)
 
@@ -43,6 +43,13 @@ def require_auth(request: Request):
     return True
 
 
+def current_login(request: Request) -> str:
+    tok = request.cookies.get("pintest_session", "")
+    if not _valid(tok):
+        raise HTTPException(401, "нужна авторизация")
+    return tok.split(":", 1)[0]
+
+
 class LoginIn(BaseModel):
     user: str
     password: str
@@ -50,7 +57,7 @@ class LoginIn(BaseModel):
 
 @app.post("/api/login")
 def login(body: LoginIn, response: Response):
-    if body.user == config.ADMIN_USER and body.password == config.ADMIN_PASSWORD:
+    if users.verify(body.user, body.password):
         response.set_cookie("pintest_session", _token(body.user), httponly=True, samesite="lax")
         return {"ok": True, "user": body.user}
     raise HTTPException(401, "неверные логин/пароль")
@@ -65,7 +72,53 @@ def logout(response: Response):
 @app.get("/api/me")
 def me(request: Request):
     tok = request.cookies.get("pintest_session", "")
-    return {"authenticated": _valid(tok)}
+    login = tok.split(":", 1)[0] if _valid(tok) else None
+    return {"authenticated": _valid(tok), "login": login}
+
+
+# ------------------------ настройки / учётные записи -----------------------
+class CredIn(BaseModel):
+    login: str = ""
+    password: str = ""
+
+
+class UserIn(BaseModel):
+    login: str
+    password: str
+
+
+@app.post("/api/settings/credentials")
+def api_change_creds(body: CredIn, request: Request, response: Response):
+    cur = current_login(request)
+    try:
+        new = users.change_credentials(cur, body.login, body.password)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    response.set_cookie("pintest_session", _token(new), httponly=True, samesite="lax")
+    return {"ok": True, "login": new}
+
+
+@app.get("/api/users")
+def api_users(_: bool = Depends(require_auth)):
+    return users.list_users()
+
+
+@app.post("/api/users")
+def api_user_create(body: UserIn, _: bool = Depends(require_auth)):
+    try:
+        users.create(body.login, body.password)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
+
+
+@app.delete("/api/users/{login}")
+def api_user_delete(login: str, _: bool = Depends(require_auth)):
+    try:
+        users.delete(login)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
 
 
 # ------------------------------ обзор --------------------------------------
@@ -328,6 +381,7 @@ async def live(ws: WebSocket):
 async def _startup():
     config.ensure_dirs()
     await run_in_threadpool(db.init)
+    await run_in_threadpool(users.seed_admin)
     asyncio.create_task(agents.heartbeat_loop())
 
 

@@ -1,13 +1,12 @@
 // topology.js — анимированная SVG-топология: хост в центре, агенты по кругу,
-// связи окрашены по статусу (online/provisioning/lost/destroyed), активные пульсируют.
+// связи по статусу (online/provisioning/lost/destroyed), активные пульсируют.
 (function () {
   const SVG = "http://www.w3.org/2000/svg";
-  const CX = 400, CY = 230, R = 155;
-
-  const STATUS_RU = {
-    online: "на связи", provisioning: "настройка",
-    lost: "потерян", destroyed: "уничтожен", failed: "ошибка",
-  };
+  const CX = 410, CY = 242, R = 172;
+  const STATUS_RU = { online: "на связи", provisioning: "настройка",
+    lost: "потерян", destroyed: "уничтожен", failed: "ошибка" };
+  const COL = { online: "#3fb950", provisioning: "#d29922", lost: "#f85149",
+    destroyed: "#3a3a3a", failed: "#f85149" };
 
   function el(name, attrs, parent) {
     const e = document.createElementNS(SVG, name);
@@ -16,64 +15,50 @@
     return e;
   }
 
-  function nodeColor(st) {
-    return { online: "#22c55e", provisioning: "#eab308", lost: "#ef4444",
-             destroyed: "#3a3a3a", failed: "#ef4444" }[st] || "#8b98a9";
-  }
-
   window.renderTopology = function (svg, data) {
     svg.innerHTML = "";
+    const defs = el("defs", {}, svg);
+    const hg = el("radialGradient", { id: "hostgrad" }, defs);
+    el("stop", { offset: "0%", "stop-color": "#7d5fe0" }, hg);
+    el("stop", { offset: "100%", "stop-color": "#1e2a55" }, hg);
     const agents = data.agents || [];
 
-    // связи (рисуем первыми, чтобы были под нодами)
+    // связи
     agents.forEach((a, i) => {
       const ang = (Math.PI * 2 * i) / Math.max(agents.length, 1) - Math.PI / 2;
-      const x = CX + R * Math.cos(ang), y = CY + R * Math.sin(ang);
+      a._pos = { x: CX + R * Math.cos(ang), y: CY + R * Math.sin(ang) };
       const cls = "link " + a.status + (a.status === "online" ? " pulse" : "");
-      const path = el("path", {
-        class: cls,
-        d: `M${CX},${CY} Q${(CX + x) / 2 + (y - CY) * 0.12},${(CY + y) / 2 - (x - CX) * 0.12} ${x},${y}`,
-      }, svg);
-      a._pos = { x, y };
+      const mx = (CX + a._pos.x) / 2 + (a._pos.y - CY) * 0.12;
+      const my = (CY + a._pos.y) / 2 - (a._pos.x - CX) * 0.12;
+      el("path", { class: cls, d: `M${CX},${CY} Q${mx},${my} ${a._pos.x},${a._pos.y}` }, svg);
     });
 
-    // агенты
+    // ноды
     agents.forEach((a) => {
-      const { x, y } = a._pos;
+      const { x, y } = a._pos, c = COL[a.status] || "#8b949e";
       const g = el("g", {}, svg);
-      el("circle", { cx: x, cy: y, r: 26, fill: "#161d2b",
-        stroke: nodeColor(a.status), "stroke-width": 3 }, g);
-      // индикатор эксплуатора
+      el("circle", { cx: x, cy: y, r: 30, fill: "rgba(22,27,34,.95)", stroke: c,
+        "stroke-width": 3, filter: a.status === "online" ? "drop-shadow(0 0 6px " + c + ")" : "" }, g);
       const roles = a.roles || [];
-      if (roles.includes && roles.includes("exploiter"))
-        el("circle", { cx: x + 20, cy: y - 20, r: 6, fill: "#8b5cf6" }, g);
-      el("text", { x, y: y + 4, "text-anchor": "middle", class: "node-label" }, g)
-        .textContent = "🖥";
-      el("text", { x, y: y + 44, "text-anchor": "middle", class: "node-label" }, g)
-        .textContent = a.name;
-      el("text", { x, y: y + 58, "text-anchor": "middle", class: "node-sub" }, g)
-        .textContent = (a.tunnel_ip || "") + " · " + (STATUS_RU[a.status] || a.status);
+      if ((roles.includes && roles.includes("exploiter")))
+        el("circle", { cx: x + 22, cy: y - 22, r: 7, fill: "#a371f7", stroke: "#161b22", "stroke-width": 2 }, g);
+      el("text", { x, y: y + 6, "text-anchor": "middle", "font-size": "20" }, g).textContent = "🖥";
+      el("text", { x, y: y + 50, "text-anchor": "middle", class: "node-label" }, g).textContent = a.name;
+      el("text", { x, y: y + 66, "text-anchor": "middle", class: "node-sub" }, g).textContent =
+        (a.tunnel_ip || "") + " · " + (STATUS_RU[a.status] || a.status);
     });
 
-    // хост в центре
+    // хост
     const gh = el("g", {}, svg);
-    el("circle", { cx: CX, cy: CY, r: 38,
-      fill: "url(#hostgrad)", stroke: "#3b82f6", "stroke-width": 3 }, gh);
-    let defs = svg.querySelector("defs");
-    if (!defs) {
-      defs = el("defs", {}, svg);
-      const grad = el("radialGradient", { id: "hostgrad" }, defs);
-      el("stop", { offset: "0%", "stop-color": "#3b82f6" }, grad);
-      el("stop", { offset: "100%", "stop-color": "#1e3a8a" }, grad);
-    }
-    el("text", { x: CX, y: CY + 5, "text-anchor": "middle",
-      class: "node-label", "font-size": "16" }, gh).textContent = "◈ HOST";
-    el("text", { x: CX, y: CY + 56, "text-anchor": "middle", class: "node-sub" }, gh)
+    el("circle", { cx: CX, cy: CY, r: 44, fill: "url(#hostgrad)", stroke: "#58a6ff",
+      "stroke-width": 3, filter: "drop-shadow(0 0 10px rgba(88,166,255,.5))" }, gh);
+    el("text", { x: CX, y: CY + 6, "text-anchor": "middle", class: "node-label", "font-size": "17" }, gh)
+      .textContent = "◈ HOST";
+    el("text", { x: CX, y: CY + 64, "text-anchor": "middle", class: "node-sub" }, gh)
       .textContent = "control plane · " + (data.host_ip || "10.9.0.1");
 
-    if (!agents.length) {
-      el("text", { x: CX, y: CY + 110, "text-anchor": "middle", class: "node-sub" }, svg)
-        .textContent = "нет подключённых нод — добавь агента во вкладке «Агенты»";
-    }
+    if (!agents.length)
+      el("text", { x: CX, y: CY + 120, "text-anchor": "middle", class: "node-sub" }, svg)
+        .textContent = "нет нод — добавь агента во вкладке «Агенты»";
   };
 })();

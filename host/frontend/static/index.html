@@ -7,184 +7,203 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+<canvas id="fx-bg" class="fx-bg"></canvas>
 
 <!-- ЛОГИН -->
 <div id="login" class="login-overlay">
-  <form id="login-form" class="login-card">
-    <div class="logo">◈ PINTEST</div>
-    <div class="sub">распределённый аудитор · control plane</div>
-    <input id="login-user" placeholder="логин" value="admin" autocomplete="username">
-    <input id="login-pass" type="password" placeholder="пароль" value="admin" autocomplete="current-password">
-    <button type="submit">Войти</button>
-    <div id="login-err" class="err"></div>
-    <div class="hint">доступ подразумевается через админский VPN-конфиг</div>
-  </form>
+  <div class="login-box">
+    <div class="login-logo"><canvas id="login-logo" width="220" height="220"></canvas></div>
+    <div class="brand-text" style="font-size:2rem;letter-spacing:.14em">PINTEST</div>
+    <div class="login-sub">распределённый аудитор · control plane</div>
+    <form id="login-form">
+      <input id="login-user" placeholder="Логин" value="admin" autocomplete="username">
+      <input id="login-pass" type="password" placeholder="Пароль" value="admin" autocomplete="current-password">
+      <button type="submit" class="btn-primary">Войти</button>
+    </form>
+    <div id="login-err" class="login-err"></div>
+    <div class="login-hint">доступ подразумевается через админский VPN-конфиг</div>
+  </div>
 </div>
 
 <!-- ОСНОВНОЙ ИНТЕРФЕЙС -->
 <div id="app" class="hidden">
   <header class="topbar">
-    <div class="brand">◈ PINTEST <span class="ver" id="ver"></span></div>
-    <div class="top-stats" id="top-stats"></div>
-    <button id="logout" class="ghost">выход</button>
+    <div class="brand">
+      <canvas id="topbar-shield" class="topbar-shield" width="96" height="96"></canvas>
+      <span class="brand-text">PINTEST</span>
+    </div>
+    <nav>
+      <a data-tab="overview" class="active"><span data-ic="gauge"></span>Обзор</a>
+      <a data-tab="agents"><span data-ic="split"></span>Агенты</a>
+      <a data-tab="targets"><span data-ic="list"></span>Цели</a>
+      <a data-tab="scan"><span data-ic="refresh"></span>Скан</a>
+      <a data-tab="reports"><span data-ic="book"></span>Отчёты</a>
+      <a data-tab="exploit"><span data-ic="bug"></span>Эксплуатация</a>
+      <a data-tab="vpn"><span data-ic="lock"></span>VPN</a>
+      <a data-tab="backups"><span data-ic="save"></span>Бэкапы</a>
+      <a data-tab="updates"><span data-ic="upload"></span>Обновления</a>
+      <a data-tab="settings"><span data-ic="gear"></span>Настройки</a>
+    </nav>
+    <div id="clock"></div>
+    <button id="logout" class="logout-btn">Выход →</button>
   </header>
 
-  <nav class="tabs">
-    <button class="tab active" data-tab="overview">Обзор</button>
-    <button class="tab" data-tab="agents">Агенты</button>
-    <button class="tab" data-tab="targets">Цели</button>
-    <button class="tab" data-tab="scan">Скан</button>
-    <button class="tab" data-tab="reports">Отчёты</button>
-    <button class="tab" data-tab="exploit">Эксплуатация</button>
-    <button class="tab" data-tab="vpn">VPN</button>
-    <button class="tab" data-tab="backups">Бэкапы</button>
-    <button class="tab" data-tab="updates">Обновления</button>
-  </nav>
-
   <main>
-    <!-- ОБЗОР: анимированная топология -->
-    <section id="tab-overview" class="panel active">
+    <!-- ОБЗОР -->
+    <section id="tab-overview" class="tab active">
+      <div class="section-title"><span data-ic="gauge"></span>Состояние системы</div>
+      <div class="kpi-row">
+        <div class="kpi" data-accent="green">
+          <div class="kpi-top"><span class="kpi-label"><span data-ic="split"></span>Агенты онлайн</span><span class="kpi-val" id="kpi-agents">0</span></div>
+          <canvas class="spark" id="spark-agents" width="280" height="40"></canvas>
+        </div>
+        <div class="kpi" data-accent="red">
+          <div class="kpi-top"><span class="kpi-label"><span data-ic="bug"></span>Находки CVE</span><span class="kpi-val" id="kpi-cve">0</span></div>
+          <canvas class="spark" id="spark-cve" width="280" height="40"></canvas>
+        </div>
+        <div class="kpi" data-accent="purple">
+          <div class="kpi-top"><span class="kpi-label"><span data-ic="shield"></span>Захвачено точек</span><span class="kpi-val" id="kpi-captured">0</span></div>
+          <canvas class="spark" id="spark-captured" width="280" height="40"></canvas>
+        </div>
+        <div class="kpi" data-accent="blue">
+          <div class="kpi-top"><span class="kpi-label"><span data-ic="lock"></span>VPN пиров</span><span class="kpi-val" id="kpi-peers">0</span></div>
+          <canvas class="spark" id="spark-peers" width="280" height="40"></canvas>
+        </div>
+      </div>
       <div class="grid-2">
         <div class="card topo-card">
-          <h3>Топология сети <span class="muted" id="topo-legend"></span></h3>
-          <svg id="topology" viewBox="0 0 800 460" preserveAspectRatio="xMidYMid meet"></svg>
+          <h3><span data-ic="split"></span>Топология сети <span class="muted" id="topo-legend"></span></h3>
+          <svg id="topology" viewBox="0 0 820 480" preserveAspectRatio="xMidYMid meet"></svg>
         </div>
         <div class="card">
-          <h3>Состояние</h3>
-          <div id="overview-stats" class="stat-list"></div>
-          <h4>Активные джобы</h4>
-          <div id="overview-jobs"></div>
+          <h3><span data-ic="gauge"></span>Активные джобы</h3>
+          <div id="overview-jobs"><div class="empty">активных сканов нет</div></div>
         </div>
       </div>
     </section>
 
     <!-- АГЕНТЫ -->
-    <section id="tab-agents" class="panel">
+    <section id="tab-agents" class="tab">
       <div class="card">
-        <h3>Добавить удалённую ноду</h3>
+        <h3><span data-ic="plus"></span>Добавить удалённую ноду</h3>
         <div class="form-row">
-          <input id="ag-name" placeholder="имя (agent-de-1)">
-          <input id="ag-host" placeholder="SSH host">
-          <input id="ag-port" placeholder="порт" value="22" style="max-width:90px">
-          <input id="ag-user" placeholder="user" value="root" style="max-width:120px">
-          <input id="ag-pass" type="password" placeholder="пароль">
-          <button id="ag-add">Подключить</button>
+          <label>Имя<input id="ag-name" placeholder="agent-de-1"></label>
+          <label>SSH host<input id="ag-host" placeholder="agent1"></label>
+          <label>Порт<input id="ag-port" value="22" style="max-width:90px"></label>
+          <label>User<input id="ag-user" value="root" style="max-width:120px"></label>
+          <label>Пароль<input id="ag-pass" type="password" placeholder="••••"></label>
+          <button id="ag-add" class="btn-primary">Подключить</button>
         </div>
+        <div class="muted">хост зайдёт по SSH, вбросит VPN-ключ и поднимет туннель — вручную настраивать ноду не нужно</div>
         <div id="ag-provision-log" class="log"></div>
       </div>
       <div class="card">
-        <h3>Ноды</h3>
-        <div id="agents-list"></div>
+        <h3><span data-ic="split"></span>Ноды</h3>
+        <div id="agents-list"><div class="empty">нод пока нет</div></div>
       </div>
     </section>
 
     <!-- ЦЕЛИ -->
-    <section id="tab-targets" class="panel">
+    <section id="tab-targets" class="tab">
       <div class="card">
-        <h3>Список целей (грязный — почистим один раз)</h3>
-        <textarea id="targets-raw" rows="10" placeholder="192.0.2.0/24&#10;10.10.0.5-20&#10;мусор игнорируется"></textarea>
-        <button id="targets-save">Сохранить и почистить</button>
+        <h3><span data-ic="list"></span>Список целей <span class="muted">— грязный, почистим один раз</span></h3>
+        <textarea id="targets-raw" rows="10" placeholder="172.30.0.0/24&#10;10.10.0.5-20&#10;мусор игнорируется"></textarea>
+        <div class="btns" style="margin-top:.8rem"><button id="targets-save" class="btn-primary">Сохранить и почистить</button></div>
         <div id="targets-result" class="log"></div>
       </div>
     </section>
 
     <!-- СКАН -->
-    <section id="tab-scan" class="panel">
+    <section id="tab-scan" class="tab">
       <div class="card">
-        <h3>Запуск аудита</h3>
+        <h3><span data-ic="refresh"></span>Запуск аудита</h3>
         <div class="form-grid">
-          <label>Порты
-            <select id="sc-ports-mode">
-              <option value="top">топ-N</option>
-              <option value="all">все 65535</option>
-              <option value="list">список</option>
-            </select>
-          </label>
-          <label>Значение <input id="sc-ports-val" value="100"></label>
-          <label>Тайминг -T
-            <select id="sc-timing"><option>0</option><option>1</option><option>2</option><option>3</option><option selected>4</option><option>5</option></select>
-          </label>
-          <label>Параллелизм -j <input id="sc-jobs" value="2" style="max-width:70px"></label>
+          <label>Порты<select id="sc-ports-mode"><option value="top">топ-N</option><option value="all">все 65535</option><option value="list">список</option></select></label>
+          <label>Значение<input id="sc-ports-val" value="100"></label>
+          <label>Тайминг -T<select id="sc-timing"><option>0</option><option>1</option><option>2</option><option>3</option><option selected>4</option><option>5</option></select></label>
+          <label>Параллелизм -j<input id="sc-jobs" value="2"></label>
           <label class="chk"><input type="checkbox" id="sc-noudp" checked> --no-udp</label>
           <label class="chk"><input type="checkbox" id="sc-notcp"> --no-tcp</label>
           <label class="chk"><input type="checkbox" id="sc-pn"> --Pn</label>
           <label class="chk"><input type="checkbox" id="sc-nopre"> --no-preflight</label>
-          <label>Режим раздачи
-            <select id="sc-mode"><option value="parallel">параллельно (чанки веером)</option><option value="sequential">последовательно (по очереди)</option></select>
-          </label>
-          <label>DIFF против джобы
-            <select id="sc-diff"><option value="">— нет —</option></select>
-          </label>
+          <label>Раздача чанков<select id="sc-mode"><option value="parallel">параллельно (веером)</option><option value="sequential">последовательно (по очереди)</option></select></label>
+          <label>DIFF против<select id="sc-diff"><option value="">— нет —</option></select></label>
         </div>
-        <button id="sc-start">Запустить скан</button>
+        <div class="btns"><button id="sc-start" class="btn-primary">Запустить скан</button></div>
         <div id="scan-result" class="log"></div>
       </div>
     </section>
 
     <!-- ОТЧЁТЫ -->
-    <section id="tab-reports" class="panel">
-      <div class="card">
-        <h3>Джобы и отчёты</h3>
-        <div id="jobs-list"></div>
-      </div>
-      <div class="card">
-        <h3>Просмотр отчёта <span class="muted" id="report-title"></span></h3>
-        <div id="report-actions"></div>
-        <iframe id="report-frame" class="report-frame"></iframe>
-      </div>
-      <div class="card hidden" id="diff-card">
-        <h3>DIFF</h3>
-        <div id="diff-result"></div>
-      </div>
+    <section id="tab-reports" class="tab">
+      <div class="card"><h3><span data-ic="book"></span>Джобы и отчёты</h3><div id="jobs-list"><div class="empty">джоб нет</div></div></div>
+      <div class="card"><h3><span data-ic="monitor"></span>Отчёт <span class="muted" id="report-title"></span></h3>
+        <div class="btns" id="report-actions"></div>
+        <iframe id="report-frame" class="report-frame" style="margin-top:.8rem"></iframe></div>
+      <div class="card hidden" id="diff-card"><h3><span data-ic="split"></span>DIFF</h3><div id="diff-result"></div></div>
     </section>
 
     <!-- ЭКСПЛУАТАЦИЯ -->
-    <section id="tab-exploit" class="panel">
+    <section id="tab-exploit" class="tab">
       <div class="card">
-        <h3>Эксплуатация (CTF) <span class="muted">— две фазы: проверка → закрепление по подтверждению</span></h3>
+        <h3><span data-ic="bug"></span>Эксплуатация (CTF) <span class="muted">— проверка → закрепление по подтверждению</span></h3>
         <div class="form-row">
-          <label>Джоба <select id="ex-job"></select></label>
-          <label>Нода-эксплуататор <select id="ex-agent"></select></label>
-          <button id="ex-refresh">Обновить список</button>
+          <label>Джоба<select id="ex-job"></select></label>
+          <label>Нода-эксплуататор<select id="ex-agent"></select></label>
+          <button id="ex-refresh">Обновить</button>
         </div>
-        <div class="warn-bar">⚠ Закрепление выполняется только после явного подтверждения. Только авторизованный лаб/CTF-скоуп.</div>
-        <div id="exploit-list"></div>
+        <div class="warn-bar"><span data-ic="warn"></span>Закрепление выполняется только после явного подтверждения. Только авторизованный лаб/CTF-скоуп.</div>
+        <div id="exploit-list"><div class="empty">выбери джобу</div></div>
       </div>
-      <div class="card">
-        <h3>Захваты и лут</h3>
-        <div id="captures-list"></div>
-      </div>
+      <div class="card"><h3><span data-ic="shield"></span>Захваты и лут</h3><div id="captures-list"><div class="empty">захватов нет</div></div></div>
     </section>
 
     <!-- VPN -->
-    <section id="tab-vpn" class="panel">
-      <div class="card"><h3>AmneziaWG сервер</h3><div id="vpn-status"></div></div>
+    <section id="tab-vpn" class="tab">
+      <div class="card"><h3><span data-ic="lock"></span>AmneziaWG сервер</h3><div id="vpn-status"></div></div>
     </section>
 
     <!-- БЭКАПЫ -->
-    <section id="tab-backups" class="panel">
-      <div class="card">
-        <h3>Бэкапы состояния хоста</h3>
-        <button id="bk-create">Создать бэкап</button>
-        <div id="backups-list"></div>
-      </div>
+    <section id="tab-backups" class="tab">
+      <div class="card"><h3><span data-ic="save"></span>Бэкапы состояния хоста</h3>
+        <div class="btns"><button id="bk-create" class="btn-primary">Создать бэкап</button></div>
+        <div id="backups-list" style="margin-top:1rem"><div class="empty">бэкапов нет</div></div></div>
     </section>
 
     <!-- ОБНОВЛЕНИЯ -->
-    <section id="tab-updates" class="panel">
-      <div class="card">
-        <h3>Обновление хоста <span class="muted">— git pull или scp-бандл</span></h3>
-        <button id="up-host-git">Обновить хост (git pull)</button>
-        <div id="up-host-log" class="log"></div>
-      </div>
-      <div class="card">
-        <h3>Обновление агентов <span class="muted">— доставка с хоста (API/SSH)</span></h3>
-        <div id="up-agents"></div>
+    <section id="tab-updates" class="tab">
+      <div class="card"><h3><span data-ic="upload"></span>Обновление хоста <span class="muted">— git pull</span></h3>
+        <div class="btns"><button id="up-host-git">Обновить хост (git pull)</button></div>
+        <div id="up-host-log" class="log"></div></div>
+      <div class="card"><h3><span data-ic="upload"></span>Обновление агентов <span class="muted">— доставка с хоста (API)</span></h3>
+        <div id="up-agents"><div class="empty">нод нет</div></div></div>
+    </section>
+
+    <!-- НАСТРОЙКИ -->
+    <section id="tab-settings" class="tab">
+      <div class="grid">
+        <div class="card"><h3><span data-ic="lock"></span>Сменить логин/пароль текущего аккаунта</h3>
+          <div class="form-row" style="flex-direction:column;align-items:stretch;max-width:360px">
+            <label>Новый логин<input id="set-login" placeholder="admin"></label>
+            <label>Новый пароль<input id="set-pass" type="password" placeholder="новый пароль"></label>
+            <button id="set-save" class="btn-primary">Сохранить</button>
+          </div>
+          <div id="set-result" class="log"></div>
+        </div>
+        <div class="card"><h3><span data-ic="user"></span>Учётные записи</h3>
+          <div class="form-row" style="flex-direction:column;align-items:stretch;max-width:360px">
+            <label>Логин<input id="usr-login" placeholder="operator"></label>
+            <label>Пароль<input id="usr-pass" type="password" placeholder="пароль"></label>
+            <button id="usr-add">Создать аккаунт</button>
+          </div>
+          <div id="users-list" style="margin-top:1rem"></div>
+        </div>
       </div>
     </section>
   </main>
 </div>
 
+<script src="/fx.js"></script>
 <script src="/topology.js"></script>
 <script src="/app.js"></script>
 </body>
