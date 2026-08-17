@@ -1,15 +1,18 @@
-# --- результаты прогонов аудита (генерируются, в репо не нужны) ---
+# ===================================================================
+#  Корневой .gitignore для всей системы (pintest + host + agent + lab)
+#  Папка pintest/ имеет свой .gitignore для отдельной выкачки.
+# ===================================================================
+
+# --- результаты прогонов аудита ---
 audit_*/
 *.audit/
 
 # --- реальные списки целей: НЕ коммитим (в репо только *.sample.txt) ---
-# сканировать можно лишь то, на что есть разрешение — списки держим локально
 targets.txt
 123.txt
 *.targets
 scope.txt
 hosts.txt
-# scratch-файлы целей
 t.txt
 tmp*.txt
 
@@ -20,7 +23,27 @@ __pycache__/
 .venv/
 venv/
 
-# --- логи/состояние (обычно лежат внутри audit_*/, но на всякий) ---
+# --- секреты и рантайм-состояние системы ---
+# ключи AmneziaWG/WireGuard, самоподписанные сертификаты — генерируются install.sh
+*.key
+*.pem
+*.crt
+*_privatekey
+*_publickey
+host/webui/certs/*
+!host/webui/certs/.gitkeep
+# рантайм-состояние control plane (реестр агентов, джобы, бэкапы)
+host/webui/state/*
+!host/webui/state/.gitkeep
+agent/state/*
+!agent/state/.gitkeep
+
+# --- локальные конфиги/оверрайды (в репо — только *.example) ---
+.env
+*.local.env
+docker-compose.override.yml
+
+# --- логи/состояние ---
 *.log
 *.pid
 status.json
