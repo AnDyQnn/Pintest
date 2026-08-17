@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pintest · Control Plane</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- ЛОГИН -->
+<div id="login" class="login-overlay">
+  <form id="login-form" class="login-card">
+    <div class="logo">◈ PINTEST</div>
+    <div class="sub">распределённый аудитор · control plane</div>
+    <input id="login-user" placeholder="логин" value="admin" autocomplete="username">
+    <input id="login-pass" type="password" placeholder="пароль" value="admin" autocomplete="current-password">
+    <button type="submit">Войти</button>
+    <div id="login-err" class="err"></div>
+    <div class="hint">доступ подразумевается через админский VPN-конфиг</div>
+  </form>
+</div>
+
+<!-- ОСНОВНОЙ ИНТЕРФЕЙС -->
+<div id="app" class="hidden">
+  <header class="topbar">
+    <div class="brand">◈ PINTEST <span class="ver" id="ver"></span></div>
+    <div class="top-stats" id="top-stats"></div>
+    <button id="logout" class="ghost">выход</button>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="overview">Обзор</button>
+    <button class="tab" data-tab="agents">Агенты</button>
+    <button class="tab" data-tab="targets">Цели</button>
+    <button class="tab" data-tab="scan">Скан</button>
+    <button class="tab" data-tab="reports">Отчёты</button>
+    <button class="tab" data-tab="exploit">Эксплуатация</button>
+    <button class="tab" data-tab="vpn">VPN</button>
+    <button class="tab" data-tab="backups">Бэкапы</button>
+    <button class="tab" data-tab="updates">Обновления</button>
+  </nav>
+
+  <main>
+    <!-- ОБЗОР: анимированная топология -->
+    <section id="tab-overview" class="panel active">
+      <div class="grid-2">
+        <div class="card topo-card">
+          <h3>Топология сети <span class="muted" id="topo-legend"></span></h3>
+          <svg id="topology" viewBox="0 0 800 460" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+        <div class="card">
+          <h3>Состояние</h3>
+          <div id="overview-stats" class="stat-list"></div>
+          <h4>Активные джобы</h4>
+          <div id="overview-jobs"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- АГЕНТЫ -->
+    <section id="tab-agents" class="panel">
+      <div class="card">
+        <h3>Добавить удалённую ноду</h3>
+        <div class="form-row">
+          <input id="ag-name" placeholder="имя (agent-de-1)">
+          <input id="ag-host" placeholder="SSH host">
+          <input id="ag-port" placeholder="порт" value="22" style="max-width:90px">
+          <input id="ag-user" placeholder="user" value="root" style="max-width:120px">
+          <input id="ag-pass" type="password" placeholder="пароль">
+          <button id="ag-add">Подключить</button>
+        </div>
+        <div id="ag-provision-log" class="log"></div>
+      </div>
+      <div class="card">
+        <h3>Ноды</h3>
+        <div id="agents-list"></div>
+      </div>
+    </section>
+
+    <!-- ЦЕЛИ -->
+    <section id="tab-targets" class="panel">
+      <div class="card">
+        <h3>Список целей (грязный — почистим один раз)</h3>
+        <textarea id="targets-raw" rows="10" placeholder="192.0.2.0/24&#10;10.10.0.5-20&#10;мусор игнорируется"></textarea>
+        <button id="targets-save">Сохранить и почистить</button>
+        <div id="targets-result" class="log"></div>
+      </div>
+    </section>
+
+    <!-- СКАН -->
+    <section id="tab-scan" class="panel">
+      <div class="card">
+        <h3>Запуск аудита</h3>
+        <div class="form-grid">
+          <label>Порты
+            <select id="sc-ports-mode">
+              <option value="top">топ-N</option>
+              <option value="all">все 65535</option>
+              <option value="list">список</option>
+            </select>
+          </label>
+          <label>Значение <input id="sc-ports-val" value="100"></label>
+          <label>Тайминг -T
+            <select id="sc-timing"><option>0</option><option>1</option><option>2</option><option>3</option><option selected>4</option><option>5</option></select>
+          </label>
+          <label>Параллелизм -j <input id="sc-jobs" value="2" style="max-width:70px"></label>
+          <label class="chk"><input type="checkbox" id="sc-noudp" checked> --no-udp</label>
+          <label class="chk"><input type="checkbox" id="sc-notcp"> --no-tcp</label>
+          <label class="chk"><input type="checkbox" id="sc-pn"> --Pn</label>
+          <label class="chk"><input type="checkbox" id="sc-nopre"> --no-preflight</label>
+          <label>Режим раздачи
+            <select id="sc-mode"><option value="parallel">параллельно (чанки веером)</option><option value="sequential">последовательно (по очереди)</option></select>
+          </label>
+          <label>DIFF против джобы
+            <select id="sc-diff"><option value="">— нет —</option></select>
+          </label>
+        </div>
+        <button id="sc-start">Запустить скан</button>
+        <div id="scan-result" class="log"></div>
+      </div>
+    </section>
+
+    <!-- ОТЧЁТЫ -->
+    <section id="tab-reports" class="panel">
+      <div class="card">
+        <h3>Джобы и отчёты</h3>
+        <div id="jobs-list"></div>
+      </div>
+      <div class="card">
+        <h3>Просмотр отчёта <span class="muted" id="report-title"></span></h3>
+        <div id="report-actions"></div>
+        <iframe id="report-frame" class="report-frame"></iframe>
+      </div>
+      <div class="card hidden" id="diff-card">
+        <h3>DIFF</h3>
+        <div id="diff-result"></div>
+      </div>
+    </section>
+
+    <!-- ЭКСПЛУАТАЦИЯ -->
+    <section id="tab-exploit" class="panel">
+      <div class="card">
+        <h3>Эксплуатация (CTF) <span class="muted">— две фазы: проверка → закрепление по подтверждению</span></h3>
+        <div class="form-row">
+          <label>Джоба <select id="ex-job"></select></label>
+          <label>Нода-эксплуататор <select id="ex-agent"></select></label>
+          <button id="ex-refresh">Обновить список</button>
+        </div>
+        <div class="warn-bar">⚠ Закрепление выполняется только после явного подтверждения. Только авторизованный лаб/CTF-скоуп.</div>
+        <div id="exploit-list"></div>
+      </div>
+      <div class="card">
+        <h3>Захваты и лут</h3>
+        <div id="captures-list"></div>
+      </div>
+    </section>
+
+    <!-- VPN -->
+    <section id="tab-vpn" class="panel">
+      <div class="card"><h3>AmneziaWG сервер</h3><div id="vpn-status"></div></div>
+    </section>
+
+    <!-- БЭКАПЫ -->
+    <section id="tab-backups" class="panel">
+      <div class="card">
+        <h3>Бэкапы состояния хоста</h3>
+        <button id="bk-create">Создать бэкап</button>
+        <div id="backups-list"></div>
+      </div>
+    </section>
+
+    <!-- ОБНОВЛЕНИЯ -->
+    <section id="tab-updates" class="panel">
+      <div class="card">
+        <h3>Обновление хоста <span class="muted">— git pull или scp-бандл</span></h3>
+        <button id="up-host-git">Обновить хост (git pull)</button>
+        <div id="up-host-log" class="log"></div>
+      </div>
+      <div class="card">
+        <h3>Обновление агентов <span class="muted">— доставка с хоста (API/SSH)</span></h3>
+        <div id="up-agents"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="/topology.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

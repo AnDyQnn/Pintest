@@ -9,18 +9,19 @@
 # ===================================================================
 
 # ---- стадия сборки: Go + make -------------------------------------
-FROM golang:1.22-bookworm AS build
+FROM golang:1-bookworm AS build
 ARG AWG_GO_REF=master
 ARG AWG_TOOLS_REF=master
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git make gcc libc6-dev ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# amneziawg-go — userspace-демон, создаёт TUN-интерфейс awg0
-RUN git clone --depth 1 --branch ${AWG_GO_REF} \
+# amneziawg-go — userspace-демон, создаёт TUN-интерфейс awg0.
+# Собираем go build'ом напрямую (детерминированный путь вывода), не полагаясь на Makefile.
+RUN mkdir -p /out && git clone --depth 1 --branch ${AWG_GO_REF} \
         https://github.com/amnezia-vpn/amneziawg-go /src/awg-go \
-    && cd /src/awg-go && make && install -m0755 amneziawg-go /out/amneziawg-go 2>/dev/null \
-       || (mkdir -p /out && install -m0755 /src/awg-go/amneziawg-go /out/amneziawg-go)
+    && cd /src/awg-go && go build -o /out/amneziawg-go . \
+    && /out/amneziawg-go --version 2>/dev/null || ls -l /out/amneziawg-go
 
 # amneziawg-tools — awg / awg-quick (форк wireguard-tools)
 RUN git clone --depth 1 --branch ${AWG_TOOLS_REF} \
@@ -34,7 +35,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # iproute2 — ip addr/link; iptables — маршрутизация; заранее ставим то,
 # что нужно и туннелю, и продукту (nmap/ssh ставят наследники).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        iproute2 iptables openresolv procps iputils-ping ca-certificates bash \
+        iproute2 iptables procps iputils-ping ca-certificates bash \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /out/amneziawg-go /usr/bin/amneziawg-go

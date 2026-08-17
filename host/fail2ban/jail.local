@@ -1,0 +1,14 @@
+# jail.local — защита основного сервера от перебора по SSH.
+# На реальном сервере fail2ban банит IP после нескольких неудачных входов по SSH,
+# закрывая хост от внешнего перебора (одна из мер «окопаться»).
+[DEFAULT]
+bantime  = 1h
+findtime = 10m
+maxretry = 5
+banaction = iptables-multiport
+backend = auto
+
+[sshd]
+enabled  = true
+port     = ssh,2222
+logpath  = %(sshd_log)s
