@@ -27,11 +27,11 @@ services:
     devices: [ /dev/net/tun ]
     environment:
       HOST_TUNNEL_IP: 10.9.0.1
-      AWG_ENDPOINT: 172.28.0.10:51820      # адрес vpn в mgmt_net — сюда дозваниваются агенты
+      AWG_ENDPOINT: 172.31.0.10:51820      # адрес vpn в mgmt_net — сюда дозваниваются агенты
       AWG_LISTEN_PORT: "51820"
     volumes: [ ./data/vpn:/etc/amnezia/amneziawg ]
     networks:
-      mgmt_net: { ipv4_address: 172.28.0.10 }
+      mgmt_net: { ipv4_address: 172.31.0.10 }
 
   backend:
     build: { context: .., dockerfile: host/backend/Dockerfile }
@@ -43,7 +43,7 @@ services:
       VPN_API: http://127.0.0.1:8080
       DATA_DIR: /data
       HOST_TUNNEL_IP: 10.9.0.1
-      AWG_ENDPOINT: 172.28.0.10:51820
+      AWG_ENDPOINT: 172.31.0.10:51820
       CHUNK_SIZE: "3"
       ADMIN_USER: admin
       ADMIN_PASSWORD: admin
@@ -76,8 +76,8 @@ services:
     networks: [ mgmt_net, targets_net ]
 
   agent2:
-    build: { context: .., dockerfile: agent/Dockerfile }
-    image: pintest-agent:latest
+    image: pintest-agent:latest      # образ строит agent1 (избегаем гонки одинакового image)
+    depends_on: [ agent1 ]
     hostname: agent2
     cap_add: [ NET_ADMIN ]
     devices: [ /dev/net/tun ]
@@ -87,8 +87,8 @@ services:
     networks: [ mgmt_net, targets_net ]
 
   agent3:
-    build: { context: .., dockerfile: agent/Dockerfile }
-    image: pintest-agent:latest
+    image: pintest-agent:latest      # образ строит agent1 (избегаем гонки одинакового image)
+    depends_on: [ agent1 ]
     hostname: agent3
     cap_add: [ NET_ADMIN ]
     devices: [ /dev/net/tun ]
@@ -100,24 +100,24 @@ services:
   # ------------------------- уязвимые цели ---------------------------------
   target-vsftpd:
     build: { context: .., dockerfile: lab/targets/vsftpd234/Dockerfile }
-    networks: { targets_net: { ipv4_address: 172.29.0.11 } }
+    networks: { targets_net: { ipv4_address: 172.30.0.11 } }
   target-apache:
     build: { context: .., dockerfile: lab/targets/apache2449/Dockerfile }
-    networks: { targets_net: { ipv4_address: 172.29.0.12 } }
+    networks: { targets_net: { ipv4_address: 172.30.0.12 } }
   target-shellshock:
     build: { context: .., dockerfile: lab/targets/shellshock/Dockerfile }
-    networks: { targets_net: { ipv4_address: 172.29.0.13 } }
+    networks: { targets_net: { ipv4_address: 172.30.0.13 } }
   target-oldssh:
     build: { context: .., dockerfile: lab/targets/oldssh/Dockerfile }
-    networks: { targets_net: { ipv4_address: 172.29.0.14 } }
+    networks: { targets_net: { ipv4_address: 172.30.0.14 } }
   target-clean:
     image: nginx:1.27-alpine                # «пропатченный» хост для контраста
-    networks: { targets_net: { ipv4_address: 172.29.0.15 } }
+    networks: { targets_net: { ipv4_address: 172.30.0.15 } }
 
 networks:
   mgmt_net:
     driver: bridge
-    ipam: { config: [ { subnet: 172.28.0.0/16 } ] }
+    ipam: { config: [ { subnet: 172.31.0.0/16 } ] }
   targets_net:
     driver: bridge
-    ipam: { config: [ { subnet: 172.29.0.0/16 } ] }
+    ipam: { config: [ { subnet: 172.30.0.0/16 } ] }

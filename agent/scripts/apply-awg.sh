@@ -9,6 +9,10 @@ IFACE="${AWG_IFACE:-awg0}"
 CONF="/etc/amnezia/amneziawg/${IFACE}.conf"
 HOST_IP="${HOST_TUNNEL_IP:-10.9.0.1}"
 STATE_DIR="${AGENT_STATE_DIR:-/opt/pintest/agent/state}"
+# гарантируем userspace-реализацию (SSH-сессия может не унаследовать Docker-ENV)
+export WG_QUICK_USERSPACE_IMPLEMENTATION=amneziawg-go
+export WG_SUDO=1
+export PATH="/usr/bin:/usr/sbin:/bin:/sbin:${PATH:-}"
 
 echo "[awg] поднимаю туннель ${IFACE} из ${CONF}"
 [ -e /dev/net/tun ] || { mkdir -p /dev/net; mknod /dev/net/tun c 10 200 2>/dev/null; }
@@ -30,8 +34,9 @@ for i in $(seq 1 10); do
 done
 
 mkdir -p "$STATE_DIR"
+ARMED_FILE="${PINTEST_ROOT:-/opt/pintest}/agent/.armed"   # в ФС контейнера (см. config.py)
 if [ "$ok" = "1" ]; then
-  touch "$STATE_DIR/armed"     # взвести dead-man switch
+  touch "$ARMED_FILE"          # взвести dead-man switch
   echo "[awg] туннель поднят, хост ${HOST_IP} доступен — dead-man ВЗВЕДЁН"
   awg show "$IFACE" 2>/dev/null | sed 's/^/[awg] /'
   exit 0

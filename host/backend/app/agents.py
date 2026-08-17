@@ -49,16 +49,21 @@ def add_agent(name: str, ssh_host: str, ssh_port: int, ssh_user: str, ssh_passwo
     (config.KEYS_DIR / f"{aid}.key").write_text(keys["private"], encoding="utf-8")
 
     conf = vpn.build_client_conf(keys["private"], tip)
+    # пир на СЕРВЕРЕ добавляем ДО поднятия туннеля агентом — иначе handshake не пройдёт
+    vpn.add_peer(keys["public"], f"{tip}/32")
     t = provisioner.SSHTarget(ssh_host, ssh_port, ssh_user, ssh_password)
     ok, log = provisioner.provision(t, conf)
     if ok:
-        vpn.add_peer(keys["public"], f"{tip}/32")
         # финальная проверка: доступен ли API агента по туннелю
         reachable = _probe(tip)
         status = "online" if reachable else "provisioning"
         log.append("API агента доступен по туннелю" if reachable else "API агента пока не отвечает по туннелю")
     else:
         status = "failed"
+        try:
+            vpn.remove_peer(keys["public"])     # откат пира, если провижн не удался
+        except Exception:  # noqa: BLE001
+            pass
     db.q("UPDATE agents SET status=%s, last_seen=%s WHERE id=%s", (status, time.time(), aid))
     LIVE.setdefault(aid, {})["provision_log"] = log
     return {"id": aid, "name": name, "tunnel_ip": tip, "status": status, "log": log}

@@ -25,9 +25,16 @@ AWG_IFACE = os.environ.get("AWG_IFACE", "awg0")
 DEADMAN_ENABLED = os.environ.get("DEADMAN_ENABLED", "1") == "1"
 DEADMAN_TIMEOUT = int(os.environ.get("DEADMAN_TIMEOUT", "20"))
 DEADMAN_INTERVAL = int(os.environ.get("DEADMAN_INTERVAL", "3"))
+# Проверка при СТАРТЕ: если нода была провижнена (armed), но при запуске хост не виден
+# за это число секунд — быстрое самоуничтожение (сценарий «отрубили сеть → выключили →
+# включили»: хвосты чистятся сразу, не дожидаясь полного таймаута).
+DEADMAN_BOOT_GRACE = int(os.environ.get("DEADMAN_BOOT_GRACE", "8"))
 
-# Файлы-маркеры состояния
-ARMED_FLAG = STATE_DIR / "armed"        # взведён ли dead-man (ставится после provision)
+# Файлы-маркеры состояния.
+# ARMED_FLAG — в ФС контейнера (не на volume!): переживает stop/start той же ноды
+# (сценарий «выключили/включили» -> быстрая чистка хвостов), но сбрасывается при
+# пересоздании контейнера (полный редеплой -> нода ждёт нового provision, не нукается зря).
+ARMED_FLAG = AGENT_DIR / ".armed"       # взведён ли dead-man (ставится после provision)
 TOMBSTONE = PINTEST_ROOT / "DESTROYED"  # маркер после самоуничтожения
 
 VERSION = os.environ.get("PINTEST_VERSION", "0.1.0")

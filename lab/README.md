@@ -11,11 +11,11 @@
 |-----------|------|------|
 | `postgres` · `vpn` · `backend` · `frontend` · `fail2ban` | хост (control plane) | mgmt_net |
 | `agent1` `agent2` `agent3` | удалённые ноды | mgmt_net + targets_net |
-| `target-vsftpd` (172.29.0.11) | vsftpd 2.3.4 — CVE-2011-2523 | targets_net |
-| `target-apache` (172.29.0.12) | Apache 2.4.49 — CVE-2021-41773 | targets_net |
-| `target-shellshock` (172.29.0.13) | Shellshock — CVE-2014-6271 | targets_net |
-| `target-oldssh` (172.29.0.14) | старый OpenSSH — находка без модуля | targets_net |
-| `target-clean` (172.29.0.15) | «пропатченный» хост | targets_net |
+| `target-vsftpd` (172.30.0.11) | vsftpd 2.3.4 — CVE-2011-2523 | targets_net |
+| `target-apache` (172.30.0.12) | Apache 2.4.49 — CVE-2021-41773 | targets_net |
+| `target-shellshock` (172.30.0.13) | Shellshock — CVE-2014-6271 | targets_net |
+| `target-oldssh` (172.30.0.14) | старый OpenSSH — находка без модуля | targets_net |
+| `target-clean` (172.30.0.15) | «пропатченный» хост | targets_net |
 
 ## Запуск
 

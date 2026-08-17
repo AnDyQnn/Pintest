@@ -53,7 +53,28 @@ def self_destruct(reason: str = "dead-man") -> None:
         subprocess.run(["awg-quick", "down", config.AWG_IFACE], capture_output=True)
 
 
+def _boot_check() -> bool:
+    """Проверка при старте. Если нода уже была провижнена (armed), но при запуске хост
+    недоступен за DEADMAN_BOOT_GRACE секунд — считаем, что ноду изолировали и перезапустили:
+    немедленно чистим хвосты. Возвращает True, если можно продолжать нормальный мониторинг."""
+    if not config.ARMED_FLAG.exists():
+        return True                       # ещё не провижнена — ждём provision, не трогаем
+    for _ in range(max(1, config.DEADMAN_BOOT_GRACE)):
+        if _host_reachable():
+            _state["last_ok"] = time.time()
+            return True
+        time.sleep(1)
+    if config.DEADMAN_ENABLED:
+        self_destruct("перезапуск без связи с хостом (чистка хвостов)")
+        return False
+    return True
+
+
 def _loop() -> None:
+    # (1) быстрая проверка на старте — сценарий «отрубили сеть, выключили, включили»
+    if not _boot_check():
+        return
+    # (2) постоянный мониторинг — сценарий «заблокировали сеть/порты во время работы»
     while True:
         armed = config.ARMED_FLAG.exists()
         _state["armed"] = armed
@@ -70,6 +91,4 @@ def _loop() -> None:
 
 
 def start() -> None:
-    if config.ARMED_FLAG.exists():
-        _state["last_ok"] = time.time()   # уже провижнен — считаем связь пока живой
     threading.Thread(target=_loop, daemon=True).start()
