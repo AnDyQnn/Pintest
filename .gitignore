@@ -24,17 +24,16 @@ __pycache__/
 venv/
 
 # --- секреты и рантайм-состояние системы ---
-# ключи AmneziaWG/WireGuard, самоподписанные сертификаты — генерируются install.sh
+# ключи AmneziaWG/WireGuard, самоподписанные сертификаты — генерируются на старте
 *.key
 *.pem
 *.crt
 *_privatekey
 *_publickey
-host/webui/certs/*
-!host/webui/certs/.gitkeep
-# рантайм-состояние control plane (реестр агентов, джобы, бэкапы)
-host/webui/state/*
-!host/webui/state/.gitkeep
+# данные на диске (volumes): отчёты, БД, ключи, бэкапы, сертификаты
+data/
+host/data/
+lab/data/
 agent/state/*
 !agent/state/.gitkeep
 

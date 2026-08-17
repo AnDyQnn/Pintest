@@ -1,0 +1,123 @@
+# ===================================================================
+#  lab/docker-compose.yml — ПОЛНАЯ симуляция системы на одном компе.
+#
+#  Тонкий harness: инстанцирует ТЕ ЖЕ образы/Dockerfile, что и реальный деплой
+#  (host/ и agent/), плюс уязвимые цели. Перенос в реальную лабу = те же образы
+#  на реальных серверах, код не меняется.
+#
+#  Две сети (у эмулируемых нод они РАЗНЫЕ):
+#    mgmt_net    — хост-сервисы + агенты (provisioning по SSH, вход туннеля)
+#    targets_net — ТОЛЬКО агенты + цели. Хост сюда НЕ подключён => не видит цели,
+#                  скан/эксплойт идёт с агентов (суть проекта).
+#
+#  Перед первым запуском: docker build -t pintest-awg-base ../awg-base  (см. build.sh)
+# ===================================================================
+services:
+  # ------------------------- control plane (хост) --------------------------
+  postgres:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: pintest, POSTGRES_PASSWORD: pintest, POSTGRES_DB: pintest }
+    volumes: [ ./data/pg:/var/lib/postgresql/data ]
+    networks: [ mgmt_net ]
+
+  vpn:
+    build: { context: .., dockerfile: host/vpn/Dockerfile }
+    image: pintest-vpn:latest
+    cap_add: [ NET_ADMIN ]
+    devices: [ /dev/net/tun ]
+    environment:
+      HOST_TUNNEL_IP: 10.9.0.1
+      AWG_ENDPOINT: 172.28.0.10:51820      # адрес vpn в mgmt_net — сюда дозваниваются агенты
+      AWG_LISTEN_PORT: "51820"
+    volumes: [ ./data/vpn:/etc/amnezia/amneziawg ]
+    networks:
+      mgmt_net: { ipv4_address: 172.28.0.10 }
+
+  backend:
+    build: { context: .., dockerfile: host/backend/Dockerfile }
+    image: pintest-backend:latest
+    network_mode: "service:vpn"            # делит netns vpn -> видит awg0 и агентов в туннеле
+    depends_on: [ vpn, postgres ]
+    environment:
+      DB_DSN: postgresql://pintest:pintest@postgres:5432/pintest
+      VPN_API: http://127.0.0.1:8080
+      DATA_DIR: /data
+      HOST_TUNNEL_IP: 10.9.0.1
+      AWG_ENDPOINT: 172.28.0.10:51820
+      CHUNK_SIZE: "3"
+      ADMIN_USER: admin
+      ADMIN_PASSWORD: admin
+    volumes: [ ./data:/data ]
+
+  frontend:
+    build: { context: .., dockerfile: host/frontend/Dockerfile }
+    image: pintest-frontend:latest
+    depends_on: [ vpn ]
+    ports: [ "8443:443" ]                  # вебка: https://localhost:8443
+    volumes: [ ./data/certs:/etc/nginx/certs ]
+    networks: [ mgmt_net ]
+
+  fail2ban:
+    build: { context: .., dockerfile: host/fail2ban/Dockerfile }
+    image: pintest-fail2ban:latest
+    cap_add: [ NET_ADMIN, NET_RAW ]
+    networks: [ mgmt_net ]
+
+  # ------------------------------ агенты -----------------------------------
+  agent1:
+    build: { context: .., dockerfile: agent/Dockerfile }
+    image: pintest-agent:latest
+    hostname: agent1
+    cap_add: [ NET_ADMIN ]
+    devices: [ /dev/net/tun ]
+    restart: "no"
+    environment: { AGENT_NAME: agent1, AGENT_SSH_USER: root, AGENT_SSH_PASSWORD: pintest, HOST_TUNNEL_IP: 10.9.0.1 }
+    volumes: [ ./data/agent1:/opt/pintest/agent/state ]
+    networks: [ mgmt_net, targets_net ]
+
+  agent2:
+    build: { context: .., dockerfile: agent/Dockerfile }
+    image: pintest-agent:latest
+    hostname: agent2
+    cap_add: [ NET_ADMIN ]
+    devices: [ /dev/net/tun ]
+    restart: "no"
+    environment: { AGENT_NAME: agent2, AGENT_SSH_USER: root, AGENT_SSH_PASSWORD: pintest, HOST_TUNNEL_IP: 10.9.0.1 }
+    volumes: [ ./data/agent2:/opt/pintest/agent/state ]
+    networks: [ mgmt_net, targets_net ]
+
+  agent3:
+    build: { context: .., dockerfile: agent/Dockerfile }
+    image: pintest-agent:latest
+    hostname: agent3
+    cap_add: [ NET_ADMIN ]
+    devices: [ /dev/net/tun ]
+    restart: "no"
+    environment: { AGENT_NAME: agent3, AGENT_SSH_USER: root, AGENT_SSH_PASSWORD: pintest, HOST_TUNNEL_IP: 10.9.0.1 }
+    volumes: [ ./data/agent3:/opt/pintest/agent/state ]
+    networks: [ mgmt_net, targets_net ]
+
+  # ------------------------- уязвимые цели ---------------------------------
+  target-vsftpd:
+    build: { context: .., dockerfile: lab/targets/vsftpd234/Dockerfile }
+    networks: { targets_net: { ipv4_address: 172.29.0.11 } }
+  target-apache:
+    build: { context: .., dockerfile: lab/targets/apache2449/Dockerfile }
+    networks: { targets_net: { ipv4_address: 172.29.0.12 } }
+  target-shellshock:
+    build: { context: .., dockerfile: lab/targets/shellshock/Dockerfile }
+    networks: { targets_net: { ipv4_address: 172.29.0.13 } }
+  target-oldssh:
+    build: { context: .., dockerfile: lab/targets/oldssh/Dockerfile }
+    networks: { targets_net: { ipv4_address: 172.29.0.14 } }
+  target-clean:
+    image: nginx:1.27-alpine                # «пропатченный» хост для контраста
+    networks: { targets_net: { ipv4_address: 172.29.0.15 } }
+
+networks:
+  mgmt_net:
+    driver: bridge
+    ipam: { config: [ { subnet: 172.28.0.0/16 } ] }
+  targets_net:
+    driver: bridge
+    ipam: { config: [ { subnet: 172.29.0.0/16 } ] }
