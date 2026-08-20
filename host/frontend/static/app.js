@@ -81,16 +81,40 @@ function spark(id, arr, color) {
 function renderLive(d) {
   renderTopology($("#topology"), d);
   const a = d.agents || [], cnt = (s) => a.filter((x) => x.status === s).length;
-  $("#topo-legend").textContent = `· на связи ${cnt("online")} · потеряно ${cnt("lost")} · уничтожено ${cnt("destroyed")}`;
+  const topo = d.topology || {};
+  const tc = topo.counts || {};
+  const tt = (tc.captured||0)+(tc.exploitable||0)+(tc.vulnerable||0)+(tc.discovered||0)+(tc.pending||0);
+  const reroute = topo.rerouted ? ` · рокировок ${topo.rerouted}` : "";
+  const cut = topo.unreachable ? ` · недостижимо ${topo.unreachable}` : "";
+  $("#topo-legend").textContent =
+    `· ноды: на связи ${cnt("online")} · потеряно ${cnt("lost")} · уничтожено ${cnt("destroyed")}` +
+    (tt ? `  ·  цели: обработано ${tc.captured||0} · обрабатываемо ${tc.exploitable||0} · уязвимо ${tc.vulnerable||0} · обнаружено ${tc.discovered||0} · в очереди ${tc.pending||0}${reroute}${cut}` : "");
   const peers = (d.vpn && d.vpn.peer_count) || 0;
-  push(HIST.agents, cnt("online")); push(HIST.peers, peers);
+  const total = a.length, reach = topo.reachable || 0, unreach = topo.unreachable || 0;
   $("#kpi-agents").textContent = cnt("online");
+  $("#kpi-agents-total").textContent = total ? "/" + total : "";
+  $("#kpi-reach").textContent = reach;
+  $("#kpi-reach-total").textContent = (reach + unreach) ? "/" + (reach + unreach) : "";
+  $("#kpi-reroute").textContent = topo.rerouted || 0;
   $("#kpi-peers").textContent = peers;
-  spark("spark-agents", HIST.agents, "#3fb950"); spark("spark-peers", HIST.peers, "#58a6ff");
+  renderReach(topo, a);
   renderOverviewJobs(d.jobs || []);
   if ($("#tab-agents").classList.contains("active")) renderAgentsLive(a);
 }
 function push(arr, v) { arr.push(v); if (arr.length > 40) arr.shift(); }
+function renderReach(topo, agents) {
+  const box = $("#reach-panel"); if (!box) return;
+  const name = {}; (agents || []).forEach((x) => { name[x.id] = x.name; });
+  const reach = topo.reachable || 0, unreach = topo.unreachable || 0, sp = topo.single_points || {};
+  if (!reach && !unreach) { box.innerHTML = '<div class="empty">запусти скан — появятся цели</div>'; return; }
+  let html = `<div class="reach-line"><span class="dot ok"></span><div class="grow">Достижимо целей (есть живой маршрут)</div><b>${reach}</b></div>`;
+  html += `<div class="reach-line"><span class="dot ${unreach ? "bad" : "ok"}"></span><div class="grow">Недостижимо (маршрут отрезан)</div><b>${unreach}</b></div>`;
+  const keys = Object.keys(sp);
+  html += keys.length
+    ? keys.map((id) => `<div class="spf">если выпадет <b>${esc(name[id] || id.slice(0, 8))}</b> — теряешь доступ к: ${sp[id].map(esc).join(", ")}</div>`).join("")
+    : '<div class="muted" style="margin-top:.6rem">единых точек отказа нет — у каждой цели есть запасной маршрут (рокировка сработает)</div>';
+  box.innerHTML = html;
+}
 function renderOverviewJobs(jobs) {
   const box = $("#overview-jobs");
   if (!jobs.length) { box.innerHTML = '<div class="empty">активных сканов нет</div>'; return; }
@@ -107,9 +131,8 @@ function renderOverviewJobs(jobs) {
 async function loadOverview() {
   try {
     const o = await api("/overview");
-    push(HIST.cve, o.findings); push(HIST.captured, o.captured);
-    $("#kpi-cve").textContent = o.findings; $("#kpi-captured").textContent = o.captured;
-    spark("spark-cve", HIST.cve, "#f85149"); spark("spark-captured", HIST.captured, "#a371f7");
+    $("#kpi-cve").textContent = o.findings;
+    $("#kpi-captured").textContent = o.captured;
   } catch (e) {}
 }
 setInterval(() => { if (!$("#app").classList.contains("hidden")) loadOverview(); }, 5000);
@@ -329,6 +352,86 @@ async function loadUsers() {
   } catch (e) {}
 }
 window.delUser = async (login) => { if (confirm(`Удалить ${login}?`)) { try { await api(`/users/${encodeURIComponent(login)}`, { method: "DELETE" }); } catch (e) { alert(e.message); } loadUsers(); } };
+
+// ── КОНСОЛЬ ─────────────────────────────────────────────────────────────────
+const CON = { sessions: {}, active: null, seq: 0, _names: {} };
+TAB_LOADERS.console = loadConsoleNodes;
+async function loadConsoleNodes() {
+  try {
+    const ags = await api("/agents");
+    const online = ags.filter((a) => a.status === "online");
+    $("#con-node").innerHTML = online.length
+      ? online.map((a) => `<option value="${a.id}">${esc(a.name)} · ${esc(a.tunnel_ip || "")}</option>`).join("")
+      : '<option value="">нет онлайн-нод</option>';
+    ags.forEach((a) => { CON._names[a.id] = a.name; });
+  } catch (e) {}
+}
+$("#con-new").addEventListener("click", openConsole);
+async function openConsole() {
+  const aid = $("#con-node").value;
+  if (!aid) { alert("нет онлайн-ноды — подключи агента"); return; }
+  let sid;
+  try { const r = await api(`/console/${aid}`, { method: "POST", body: { cols: 120, rows: 30 } }); sid = r.sid; }
+  catch (e) { alert("не удалось открыть консоль: " + e.message); return; }
+  if (!sid) { alert("агент не открыл сессию"); return; }
+  const key = aid + ":" + sid, n = ++CON.seq;
+  const label = (CON._names[aid] || aid.slice(0, 6)) + " #" + n;
+  const holder = $("#con-holder"); const emp = $("#con-empty"); if (emp) emp.style.display = "none";
+  const mount = document.createElement("div"); mount.className = "con-term"; holder.appendChild(mount);
+  const term = new Terminal({ fontSize: 13, fontFamily: "ui-monospace,Consolas,monospace",
+    theme: { background: "#000000", foreground: "#c9d1d9" }, cursorBlink: true, scrollback: 5000 });
+  const fit = new FitAddon.FitAddon(); term.loadAddon(fit); term.open(mount);
+  const sess = { aid, sid, key, term, fit, mount, offset: 0, alive: true, label };
+  CON.sessions[key] = sess;
+  term.onData((data) => { api(`/console/${aid}/${sid}/input`, { method: "POST", body: { data } }).catch(() => {}); });
+  addConTab(sess); activateConsole(key);
+  setTimeout(() => { try { fit.fit(); sendResize(sess); } catch (e) {} }, 40);
+  pollConsole(sess);
+}
+function addConTab(sess) {
+  const tab = document.createElement("div"); tab.className = "con-tab"; tab.dataset.key = sess.key;
+  tab.innerHTML = `<span>${esc(sess.label)}</span><span class="x">✕</span>`;
+  tab.addEventListener("click", (e) => {
+    if (e.target.classList.contains("x")) closeConsole(sess.key); else activateConsole(sess.key);
+  });
+  $("#con-tabs").appendChild(tab); sess.tab = tab;
+}
+function activateConsole(key) {
+  CON.active = key;
+  Object.values(CON.sessions).forEach((s) => {
+    const on = s.key === key;
+    s.mount.classList.toggle("active", on);
+    if (s.tab) s.tab.classList.toggle("active", on);
+    if (on) setTimeout(() => { try { s.fit.fit(); sendResize(s); s.term.focus(); } catch (e) {} }, 20);
+  });
+}
+async function closeConsole(key) {
+  const s = CON.sessions[key]; if (!s) return;
+  s.alive = false;
+  try { await api(`/console/${s.aid}/${s.sid}`, { method: "DELETE" }); } catch (e) {}
+  try { s.term.dispose(); } catch (e) {}
+  s.mount.remove(); if (s.tab) s.tab.remove(); delete CON.sessions[key];
+  const rest = Object.keys(CON.sessions);
+  if (rest.length) activateConsole(rest[rest.length - 1]);
+  else { CON.active = null; const emp = $("#con-empty"); if (emp) emp.style.display = ""; }
+}
+function sendResize(s) {
+  if (!s.alive) return;
+  api(`/console/${s.aid}/${s.sid}/resize`, { method: "POST", body: { cols: s.term.cols, rows: s.term.rows } }).catch(() => {});
+}
+async function pollConsole(s) {
+  while (s.alive) {
+    try {
+      const r = await api(`/console/${s.aid}/${s.sid}/output?since=${s.offset}`);
+      if (r.gone) { s.term.write("\r\n\x1b[31m[сессия закрыта]\x1b[0m\r\n"); break; }
+      if (r.data) { s.term.write(r.data); s.offset = r.offset; }
+      if (!r.alive) { s.term.write("\r\n\x1b[33m[shell завершился]\x1b[0m\r\n"); break; }
+    } catch (e) { await new Promise((res) => setTimeout(res, 1000)); continue; }
+    await new Promise((res) => setTimeout(res, 250));
+  }
+  s.alive = false;
+}
+window.addEventListener("resize", () => { const s = CON.sessions[CON.active]; if (s) { try { s.fit.fit(); sendResize(s); } catch (e) {} } });
 
 // ── старт ───────────────────────────────────────────────────────────────────
 initFx(); initLoginLogo();

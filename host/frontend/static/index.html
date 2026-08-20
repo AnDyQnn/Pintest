@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pintest · Control Plane</title>
+  <link rel="stylesheet" href="/vendor/xterm.css">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -37,6 +38,7 @@
       <a data-tab="agents"><span data-ic="split"></span>Агенты</a>
       <a data-tab="targets"><span data-ic="list"></span>Цели</a>
       <a data-tab="scan"><span data-ic="refresh"></span>Скан</a>
+      <a data-tab="console"><span data-ic="monitor"></span>Консоль</a>
       <a data-tab="reports"><span data-ic="book"></span>Отчёты</a>
       <a data-tab="exploit"><span data-ic="bug"></span>Эксплуатация</a>
       <a data-tab="vpn"><span data-ic="lock"></span>VPN</a>
@@ -51,34 +53,39 @@
   <main>
     <!-- ОБЗОР -->
     <section id="tab-overview" class="tab active">
-      <div class="section-title"><span data-ic="gauge"></span>Состояние системы</div>
-      <div class="kpi-row">
-        <div class="kpi" data-accent="green">
-          <div class="kpi-top"><span class="kpi-label"><span data-ic="split"></span>Агенты онлайн</span><span class="kpi-val" id="kpi-agents">0</span></div>
-          <canvas class="spark" id="spark-agents" width="280" height="40"></canvas>
-        </div>
-        <div class="kpi" data-accent="red">
-          <div class="kpi-top"><span class="kpi-label"><span data-ic="bug"></span>Находки CVE</span><span class="kpi-val" id="kpi-cve">0</span></div>
-          <canvas class="spark" id="spark-cve" width="280" height="40"></canvas>
-        </div>
-        <div class="kpi" data-accent="purple">
-          <div class="kpi-top"><span class="kpi-label"><span data-ic="shield"></span>Захвачено точек</span><span class="kpi-val" id="kpi-captured">0</span></div>
-          <canvas class="spark" id="spark-captured" width="280" height="40"></canvas>
-        </div>
-        <div class="kpi" data-accent="blue">
-          <div class="kpi-top"><span class="kpi-label"><span data-ic="lock"></span>VPN пиров</span><span class="kpi-val" id="kpi-peers">0</span></div>
-          <canvas class="spark" id="spark-peers" width="280" height="40"></canvas>
-        </div>
+      <div class="stat-strip">
+        <div class="stat" data-accent="green"><span class="stat-ic" data-ic="split"></span>
+          <div><div class="stat-num"><span id="kpi-agents">0</span><span class="stat-of" id="kpi-agents-total"></span></div><div class="stat-cap">агентов на связи</div></div></div>
+        <div class="stat" data-accent="blue"><span class="stat-ic" data-ic="list"></span>
+          <div><div class="stat-num"><span id="kpi-reach">0</span><span class="stat-of" id="kpi-reach-total"></span></div><div class="stat-cap">целей достижимо</div></div></div>
+        <div class="stat" data-accent="red"><span class="stat-ic" data-ic="bug"></span>
+          <div><div class="stat-num" id="kpi-cve">0</div><div class="stat-cap">находок CVE</div></div></div>
+        <div class="stat" data-accent="purple"><span class="stat-ic" data-ic="shield"></span>
+          <div><div class="stat-num" id="kpi-captured">0</div><div class="stat-cap">целей обработано</div></div></div>
+        <div class="stat" data-accent="amber"><span class="stat-ic" data-ic="refresh"></span>
+          <div><div class="stat-num" id="kpi-reroute">0</div><div class="stat-cap">рокировок маршрута</div></div></div>
+        <div class="stat" data-accent="blue"><span class="stat-ic" data-ic="lock"></span>
+          <div><div class="stat-num" id="kpi-peers">0</div><div class="stat-cap">VPN-пиров</div></div></div>
       </div>
+
+      <div class="card topo-card">
+        <h3><span data-ic="split"></span>Живая топология сети
+          <span class="muted" id="topo-legend"></span>
+          <span class="topo-key">
+            <i class="kc kc-host"></i>хост <i class="kc kc-agent"></i>агент
+            <i class="kc kc-captured"></i>обработана <i class="kc kc-exploitable"></i>обрабатываема
+            <i class="kc kc-vulnerable"></i>уязвима <i class="kc kc-discovered"></i>обнаружена
+            <i class="kc kc-cut"></i>недостижима
+          </span>
+        </h3>
+        <svg id="topology" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+
       <div class="grid-2">
-        <div class="card topo-card">
-          <h3><span data-ic="split"></span>Топология сети <span class="muted" id="topo-legend"></span></h3>
-          <svg id="topology" viewBox="0 0 820 480" preserveAspectRatio="xMidYMid meet"></svg>
-        </div>
-        <div class="card">
-          <h3><span data-ic="gauge"></span>Активные джобы</h3>
-          <div id="overview-jobs"><div class="empty">активных сканов нет</div></div>
-        </div>
+        <div class="card"><h3><span data-ic="refresh"></span>Активность процессов</h3>
+          <div id="overview-jobs"><div class="empty">активных сканов нет</div></div></div>
+        <div class="card"><h3><span data-ic="shield"></span>Достижимость и точки отказа</h3>
+          <div id="reach-panel"><div class="empty">нет данных</div></div></div>
       </div>
     </section>
 
@@ -131,6 +138,23 @@
         </div>
         <div class="btns"><button id="sc-start" class="btn-primary">Запустить скан</button></div>
         <div id="scan-result" class="log"></div>
+      </div>
+    </section>
+
+    <!-- КОНСОЛЬ -->
+    <section id="tab-console" class="tab">
+      <div class="card console-card">
+        <h3><span data-ic="monitor"></span>Консоль узлов
+          <span class="console-open">
+            <select id="con-node"></select>
+            <button id="con-new" class="btn-primary mini">+ Новая консоль</button>
+          </span>
+        </h3>
+        <div class="muted" style="margin:-.4rem 0 .7rem">полноценный bash на ноде через туннель · можно открыть несколько вкладок · стрелки, Tab-дополнение, Ctrl-C — как в обычном терминале</div>
+        <div id="con-tabs" class="con-tabs"></div>
+        <div id="con-holder" class="con-holder">
+          <div class="con-empty" id="con-empty">Выбери ноду и нажми «+ Новая консоль».</div>
+        </div>
       </div>
     </section>
 
@@ -203,6 +227,8 @@
   </main>
 </div>
 
+<script src="/vendor/xterm.js"></script>
+<script src="/vendor/xterm-addon-fit.js"></script>
 <script src="/fx.js"></script>
 <script src="/topology.js"></script>
 <script src="/app.js"></script>

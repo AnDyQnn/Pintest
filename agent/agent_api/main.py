@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from . import config, deadman, exploit_runner, roles, updater
+from . import config, console, deadman, exploit_runner, roles, updater
 from .runner import registry
 
 try:
@@ -53,6 +53,20 @@ class ExploitCaptureIn(BaseModel):
     cve: str
     port: int = 0
     confirm: bool = False       # человек подтвердил закрепление в UI
+
+
+class ConsoleOpenIn(BaseModel):
+    cols: int = 120
+    rows: int = 30
+
+
+class ConsoleInputIn(BaseModel):
+    data: str = ""
+
+
+class ConsoleSizeIn(BaseModel):
+    cols: int = 120
+    rows: int = 30
 
 
 # ------------------------------ хелперы ------------------------------------
@@ -191,6 +205,40 @@ def update(body: UpdateIn):
         raise HTTPException(400, f"не удалось применить обновление: {e}")
     updater.restart_soon()
     return res
+
+
+# ---- интерактивная консоль (PTY) ------------------------------------------
+@app.post("/console")
+def console_open(body: ConsoleOpenIn):
+    """Открыть новую shell-сессию (bash под pty). Вернёт sid."""
+    return console.open_session(body.cols, body.rows)
+
+
+@app.get("/console")
+def console_list():
+    return console.list_sessions()
+
+
+@app.post("/console/{sid}/input")
+def console_input(sid: str, body: ConsoleInputIn):
+    """Отправить сырые байты клавиш в сессию."""
+    return console.write_session(sid, body.data)
+
+
+@app.get("/console/{sid}/output")
+def console_output(sid: str, since: int = 0):
+    """Забрать новый вывод начиная со смещения since."""
+    return console.read_session(sid, since)
+
+
+@app.post("/console/{sid}/resize")
+def console_resize(sid: str, body: ConsoleSizeIn):
+    return console.resize_session(sid, body.cols, body.rows)
+
+
+@app.delete("/console/{sid}")
+def console_close(sid: str):
+    return console.close_session(sid)
 
 
 @app.post("/destroy")

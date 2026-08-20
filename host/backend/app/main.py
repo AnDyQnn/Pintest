@@ -17,8 +17,8 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-from . import (agents, backup, config, db, diff, exploitation, orchestrator,
-               reports, targets, updates, users, vpn)
+from . import (agents, backup, config, console, db, diff, exploitation, orchestrator,
+               reports, targets, topology, updates, users, vpn)
 
 app = FastAPI(title="pintest-host", version=config.VERSION)
 
@@ -213,6 +213,18 @@ def api_targets_get(_: bool = Depends(require_auth)):
     return targets.latest() or {"targets": [], "count": 0}
 
 
+@app.get("/api/topology")
+def api_topology(_: bool = Depends(require_auth)):
+    """Целевой слой топологии (хост/агенты фронт берёт из /api/live)."""
+    return topology.build()
+
+
+@app.get("/api/graph")
+def api_graph(_: bool = Depends(require_auth)):
+    """Полный граф сети: узлы + рёбра (control/scan/exploit/reroute) + достижимость."""
+    return topology.graph()
+
+
 # ------------------------------ джобы --------------------------------------
 class JobIn(BaseModel):
     opts: Dict = {}
@@ -308,6 +320,49 @@ def api_captures(_: bool = Depends(require_auth)):
     return exploitation.captures()
 
 
+# ------------------------------ консоль ------------------------------------
+class ConsoleOpenIn(BaseModel):
+    cols: int = 120
+    rows: int = 30
+
+
+class ConsoleInputIn(BaseModel):
+    data: str = ""
+
+
+class ConsoleSizeIn(BaseModel):
+    cols: int = 120
+    rows: int = 30
+
+
+@app.post("/api/console/{aid}")
+async def api_console_open(aid: str, body: ConsoleOpenIn, _: bool = Depends(require_auth)):
+    try:
+        return await run_in_threadpool(console.open, aid, body.cols, body.rows)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/console/{aid}/{sid}/input")
+async def api_console_input(aid: str, sid: str, body: ConsoleInputIn, _: bool = Depends(require_auth)):
+    return await run_in_threadpool(console.write, aid, sid, body.data)
+
+
+@app.get("/api/console/{aid}/{sid}/output")
+async def api_console_output(aid: str, sid: str, since: int = 0, _: bool = Depends(require_auth)):
+    return await run_in_threadpool(console.read, aid, sid, since)
+
+
+@app.post("/api/console/{aid}/{sid}/resize")
+async def api_console_resize(aid: str, sid: str, body: ConsoleSizeIn, _: bool = Depends(require_auth)):
+    return await run_in_threadpool(console.resize, aid, sid, body.cols, body.rows)
+
+
+@app.delete("/api/console/{aid}/{sid}")
+async def api_console_close(aid: str, sid: str, _: bool = Depends(require_auth)):
+    return await run_in_threadpool(console.close, aid, sid)
+
+
 # ------------------------------ VPN ----------------------------------------
 @app.get("/api/vpn")
 def api_vpn(_: bool = Depends(require_auth)):
@@ -346,6 +401,14 @@ async def api_update_host(body: HostUpdateIn, _: bool = Depends(require_auth)):
     return await run_in_threadpool(updates.host_update_git)
 
 
+def _safe_topology() -> Dict:
+    """Целевой слой для live — не роняем сокет, если БД временно недоступна."""
+    try:
+        return topology.build()
+    except Exception:  # noqa: BLE001
+        return {"targets": [], "counts": {}}
+
+
 # --------------------------- WebSocket живого статуса ----------------------
 @app.websocket("/api/live")
 async def live(ws: WebSocket):
@@ -367,6 +430,7 @@ async def live(ws: WebSocket):
                 "jobs": running,
                 "vpn": vpn.status(),
                 "host_ip": config.HOST_TUNNEL_IP,
+                "topology": _safe_topology(),
             }
             await ws.send_json(payload)
             await asyncio.sleep(1.5)
