@@ -215,13 +215,38 @@ async function loadJobs() {
       : '<div class="empty">джоб нет</div>';
   } catch (e) {}
 }
-window.viewReport = (id) => {
+window.viewReport = async (id) => {
   $("#report-title").textContent = id;
-  $("#report-frame").src = `/api/jobs/${id}/report`;
   $("#report-actions").innerHTML =
-    `<button class="mini" onclick="window.open('/api/jobs/${id}/artifact/report.md','_blank')">скачать .md</button>
-     <button class="mini" onclick="window.open('/api/jobs/${id}/artifact/findings.csv','_blank')">скачать .csv</button>`;
+    `<button class="mini" onclick="window.open('/api/jobs/${id}/report','_blank')">HTML ↗</button>
+     <button class="mini" onclick="window.open('/api/jobs/${id}/artifact/report.md','_blank')">.md</button>
+     <button class="mini" onclick="window.open('/api/jobs/${id}/artifact/findings.csv','_blank')">.csv</button>
+     <button class="mini" onclick="window.open('/api/jobs/${id}/artifact/findings.json','_blank')">.json</button>`;
+  const view = $("#report-view");
+  view.innerHTML = '<div class="empty">загрузка…</div>';
+  try {
+    const f = await api(`/jobs/${id}/artifact/findings.json`);
+    view.innerHTML = renderReport(Array.isArray(f) ? f : []);
+  } catch (e) { view.innerHTML = '<div class="empty">отчёт ещё не готов</div>'; }
 };
+const SEV_ORD = { Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4 };
+function renderReport(f) {
+  if (!f.length) return '<div class="empty">находок нет — чисто</div>';
+  const byHost = {}, sevCount = {};
+  f.forEach((x) => { (byHost[x.host] = byHost[x.host] || []).push(x); sevCount[x.severity] = (sevCount[x.severity] || 0) + 1; });
+  const chips = Object.keys(sevCount).sort((a, b) => (SEV_ORD[a] ?? 9) - (SEV_ORD[b] ?? 9))
+    .map((s) => `<span class="badge ${esc(s)}">${esc(s)} ${sevCount[s]}</span>`).join(" ");
+  const hosts = Object.keys(byHost).sort();
+  const summary = `<div class="rep-summary"><div><b>${hosts.length}</b> хостов · <b>${f.length}</b> CVE</div><div class="rep-chips">${chips}</div></div>`;
+  const sections = hosts.map((h) => {
+    const rows = byHost[h].slice().sort((a, b) => (SEV_ORD[a.severity] ?? 9) - (SEV_ORD[b.severity] ?? 9) || (b.cvss || 0) - (a.cvss || 0));
+    return `<details class="rep-host" open><summary><b>${esc(h)}</b> <span class="muted">${rows.length} CVE</span></summary>
+      <table class="rep-table"><tr><th>CVE</th><th>CVSS</th><th>Severity</th></tr>
+      ${rows.map((r) => `<tr><td><code>${esc(r.cve)}</code></td><td>${r.cvss ?? ""}</td><td><span class="badge ${esc(r.severity)}">${esc(r.severity)}</span></td></tr>`).join("")}
+      </table></details>`;
+  }).join("");
+  return summary + sections;
+}
 window.showDiff = async (a, b) => {
   try {
     const d = await api(`/diff?a=${a}&b=${b}`);
@@ -283,12 +308,26 @@ window.exCapture = async (i, host, cve, port) => {
 };
 async function loadCaptures() {
   try {
-    const caps = await api("/captures");
-    $("#captures-list").innerHTML = caps.length ? `<table><tr><th>Время</th><th>Цель</th><th>CVE</th><th>Фаза</th><th>Итог</th><th>Флаг</th></tr>
-      ${caps.map((c) => `<tr><td>${new Date(c.ts * 1000).toLocaleTimeString("ru-RU")}</td><td>${esc(c.target)}</td><td>${esc(c.cve)}</td><td>${esc(c.phase)}</td>
-      <td>${c.success ? '<span style="color:var(--good)">✓</span>' : '<span style="color:var(--bad)">✗</span>'}</td><td>${esc(c.flag || "")}</td></tr>`).join("")}</table>`
-      : '<div class="empty">захватов пока нет</div>';
+    const r = await api("/loot");
+    const box = $("#captures-list");
+    if (!r.items || !r.items.length) { box.innerHTML = '<div class="empty">лута пока нет — закрепись на цели выше</div>'; return; }
+    box.innerHTML = `<div class="muted" style="margin-bottom:.7rem">закреплений <b>${r.captures}</b> · хостов <b>${r.hosts}</b> · флагов <b>${r.flags}</b></div>`
+      + r.items.map(lootCard).join("");
   } catch (e) {}
+}
+function lootCard(i) {
+  const loot = i.loot || {};
+  const blocks = Object.keys(loot).map((k) =>
+    `<div class="loot-k">${esc(k)}</div><pre class="loot-pre">${esc(String(loot[k]).trim())}</pre>`).join("");
+  const log = (i.log || []).length
+    ? `<details class="loot-log"><summary>лог операции</summary><pre class="loot-pre">${esc(i.log.join("\n"))}</pre></details>` : "";
+  const flag = i.flag ? `<div class="loot-flag">🏳 ${esc(i.flag)}</div>` : "";
+  return `<div class="loot-card">
+    <div class="loot-h"><span>🚩 <b>${esc(i.target)}</b>:${i.port} <span class="loot-cve">${esc(i.cve)}</span></span>
+      <span class="muted">${new Date(i.ts * 1000).toLocaleString("ru-RU")}</span></div>
+    ${flag}${blocks || '<div class="muted">модуль не вернул содержимого лута</div>'}
+    ${i.marker ? `<div class="muted" style="margin-top:.5rem">маркер: <code>${esc(i.marker)}</code></div>` : ""}
+    ${log}</div>`;
 }
 
 // ── VPN ─────────────────────────────────────────────────────────────────────

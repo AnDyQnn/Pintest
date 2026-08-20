@@ -49,7 +49,8 @@ fi
 # 3) конфиг
 if [ ! -f "$HERE/config.env" ]; then
   cp "$HERE/config.example.env" "$HERE/config.env"
-  echo "[install] создан host/config.env — ОБЯЗАТЕЛЬНО пропиши AWG_ENDPOINT (публичный IP хоста)"
+  echo "[install] создан host/config.env — адрес хоста (AWG_ENDPOINT) определится САМ;"
+  echo "[install]   пропиши его вручную, только если авто-детект ошибётся (сложный NAT)"
 fi
 
 # 4) общий образ AmneziaWG + стек

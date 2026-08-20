@@ -17,8 +17,8 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-from . import (agents, backup, config, console, db, diff, exploitation, orchestrator,
-               reports, targets, topology, updates, users, vpn)
+from . import (agents, backup, config, console, db, diff, exploitation, loot,
+               orchestrator, reports, targets, topology, updates, users, vpn)
 
 app = FastAPI(title="pintest-host", version=config.VERSION)
 
@@ -320,6 +320,28 @@ def api_captures(_: bool = Depends(require_auth)):
     return exploitation.captures()
 
 
+# ------------------------------ лут ----------------------------------------
+@app.get("/api/loot")
+def api_loot(_: bool = Depends(require_auth)):
+    return loot.summary()
+
+
+@app.get("/api/loot/report.md")
+def api_loot_md(_: bool = Depends(require_auth)):
+    return PlainTextResponse(loot.report_md(), media_type="text/markdown; charset=utf-8")
+
+
+@app.get("/api/loot/report.json")
+def api_loot_json(_: bool = Depends(require_auth)):
+    return JSONResponse(loot.items())
+
+
+@app.get("/api/loot/report.html")
+def api_loot_html(_: bool = Depends(require_auth)):
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(loot.report_html())
+
+
 # ------------------------------ консоль ------------------------------------
 class ConsoleOpenIn(BaseModel):
     cols: int = 120
@@ -433,7 +455,7 @@ async def live(ws: WebSocket):
                 "topology": _safe_topology(),
             }
             await ws.send_json(payload)
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(config.LIVE_INTERVAL)
     except WebSocketDisconnect:
         return
     except Exception:  # noqa: BLE001

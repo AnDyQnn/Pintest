@@ -161,9 +161,9 @@
     <!-- ОТЧЁТЫ -->
     <section id="tab-reports" class="tab">
       <div class="card"><h3><span data-ic="book"></span>Джобы и отчёты</h3><div id="jobs-list"><div class="empty">джоб нет</div></div></div>
-      <div class="card"><h3><span data-ic="monitor"></span>Отчёт <span class="muted" id="report-title"></span></h3>
-        <div class="btns" id="report-actions"></div>
-        <iframe id="report-frame" class="report-frame" style="margin-top:.8rem"></iframe></div>
+      <div class="card"><h3><span data-ic="monitor"></span>Отчёт <span class="muted" id="report-title"></span>
+        <span class="btns" id="report-actions" style="margin-left:auto"></span></h3>
+        <div id="report-view" class="report-view"><div class="empty">выбери джобу выше — отчёт покажу здесь, в тёмной теме</div></div></div>
       <div class="card hidden" id="diff-card"><h3><span data-ic="split"></span>DIFF</h3><div id="diff-result"></div></div>
     </section>
 
@@ -179,7 +179,13 @@
         <div class="warn-bar"><span data-ic="warn"></span>Закрепление выполняется только после явного подтверждения. Только авторизованный лаб/CTF-скоуп.</div>
         <div id="exploit-list"><div class="empty">выбери джобу</div></div>
       </div>
-      <div class="card"><h3><span data-ic="shield"></span>Захваты и лут</h3><div id="captures-list"><div class="empty">захватов нет</div></div></div>
+      <div class="card"><h3><span data-ic="shield"></span>Захваты и лут
+        <span class="btns" style="margin-left:auto">
+          <button class="mini" onclick="window.open('/api/loot/report.html','_blank')">лут-отчёт (HTML)</button>
+          <button class="mini" onclick="window.open('/api/loot/report.md','_blank')">.md</button>
+          <button class="mini" onclick="window.open('/api/loot/report.json','_blank')">.json</button>
+        </span></h3>
+        <div id="captures-list"><div class="empty">лута пока нет — закрепись на цели выше</div></div></div>
     </section>
 
     <!-- VPN -->

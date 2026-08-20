@@ -28,6 +28,7 @@ HEARTBEAT_MISS = int(os.environ.get("HEARTBEAT_MISS", "4"))          # пром�
 # Оркестрация
 CHUNK_SIZE = int(os.environ.get("CHUNK_SIZE", "4"))    # целей в чанке (мелко для наглядности лабы)
 POLL_INTERVAL = float(os.environ.get("POLL_INTERVAL", "2"))  # опрос статуса чанка
+LIVE_INTERVAL = float(os.environ.get("LIVE_INTERVAL", "1.5"))  # период WS-обновления вебки (сек)
 
 # Доступ к вебке (через админский VPN-конфиг)
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")

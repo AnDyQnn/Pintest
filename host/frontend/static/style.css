@@ -260,3 +260,28 @@ th{color:var(--muted);font-weight:600}
 .con-term{position:absolute;inset:.5rem;display:none}
 .con-term.active{display:block}
 .con-term .xterm{height:100%}
+
+/* ── ОТЧЁТ (нативный, тёмный — вместо белого iframe) ── */
+.report-view{min-height:200px}
+.rep-summary{display:flex;flex-wrap:wrap;gap:.8rem 1.2rem;align-items:center;justify-content:space-between;
+  background:rgba(13,17,23,.55);border:1px solid var(--border);border-radius:12px;padding:.8rem 1rem;margin-bottom:1rem}
+.rep-chips{display:flex;gap:.4rem;flex-wrap:wrap}
+.rep-host{border:1px solid var(--border);border-radius:11px;margin-bottom:.7rem;overflow:hidden;background:rgba(13,17,23,.4)}
+.rep-host>summary{cursor:pointer;padding:.6rem .9rem;font-size:.95rem;list-style:none;display:flex;gap:.6rem;align-items:center}
+.rep-host>summary::-webkit-details-marker{display:none}
+.rep-host>summary:hover{background:rgba(255,255,255,.03)}
+.rep-table{margin:0}
+.rep-table th,.rep-table td{padding:.4rem .9rem}
+.rep-table code{color:var(--accent)}
+
+/* ── ЛУТ (карточки с реальным содержимым) ── */
+.loot-card{background:rgba(13,17,23,.55);border:1px solid var(--border);border-radius:12px;padding:.8rem 1rem;margin-bottom:.8rem}
+.loot-h{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;font-size:1rem}
+.loot-cve{color:#f0883e;font-family:var(--mono);font-size:.85rem;margin-left:.35rem}
+.loot-flag{color:#c4b5fd;font-weight:700;margin:.5rem 0;font-size:.95rem}
+.loot-k{color:var(--accent);font-weight:700;margin:.7rem 0 .25rem;font-size:.85rem}
+.loot-pre{background:#01040b;border:1px solid var(--border);border-radius:8px;padding:.7rem .8rem;overflow:auto;
+  font:12px var(--mono);color:#adbac7;white-space:pre-wrap;max-height:280px;margin:0}
+.loot-log{margin-top:.5rem}
+.loot-log summary{cursor:pointer;color:var(--muted);font-size:.85rem}
+.loot-card code{color:var(--accent);font-family:var(--mono)}
