@@ -219,6 +219,39 @@
       VIEW.tx = p.x - ox; VIEW.ty = p.y - oy; userAdjusted = true; const g = vp(); if (g) applyView(g);
     });
     window.addEventListener("mouseup", () => { drag = false; svg.style.cursor = "grab"; });
+
+    // ── тач: пан одним пальцем + пинч-зум (телефон). Тап не трогаем — он даёт click (меню узла). ──
+    let tdrag = false, tox = 0, toy = 0, pinchD = 0;
+    const _dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    const _mid = (a, b) => ({ clientX: (a.clientX + b.clientX) / 2, clientY: (a.clientY + b.clientY) / 2 });
+    svg.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 1) {
+        const p = toSvg(e.touches[0]); if (!p) return;
+        tdrag = true; tox = p.x - VIEW.tx; toy = p.y - VIEW.ty;
+      } else if (e.touches.length === 2) {
+        tdrag = false; pinchD = _dist(e.touches[0], e.touches[1]);
+      }
+    }, { passive: true });
+    svg.addEventListener("touchmove", (e) => {
+      if (e.touches.length === 1 && tdrag) {
+        e.preventDefault();
+        const p = toSvg(e.touches[0]); if (!p) return;
+        VIEW.tx = p.x - tox; VIEW.ty = p.y - toy; userAdjusted = true;
+        const g = vp(); if (g) applyView(g);
+      } else if (e.touches.length === 2 && pinchD) {
+        e.preventDefault();
+        const nd = _dist(e.touches[0], e.touches[1]);
+        const p = toSvg(_mid(e.touches[0], e.touches[1])); if (!p) return;
+        const wx = (p.x - VIEW.tx) / VIEW.k, wy = (p.y - VIEW.ty) / VIEW.k;
+        VIEW.k = Math.min(8, Math.max(0.12, VIEW.k * (nd / pinchD)));
+        VIEW.tx = p.x - VIEW.k * wx; VIEW.ty = p.y - VIEW.k * wy;
+        pinchD = nd; userAdjusted = true;
+        const g = vp(); if (g) applyView(g);
+      }
+    }, { passive: false });
+    svg.addEventListener("touchend", (e) => {
+      if (e.touches.length === 0) { tdrag = false; pinchD = 0; scheduleRerender(); }
+    }, { passive: true });
     svg.addEventListener("dblclick", (e) => {   // двойной клик — снова вписать граф в карту
       e.preventDefault(); userAdjusted = false; scheduleRerender();
     });

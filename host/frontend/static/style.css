@@ -304,3 +304,54 @@ th{color:var(--muted);font-weight:600}
 }
 .topo-menu .tm-item:hover:not(:disabled) { background: #21262d; color: #fff; }
 .topo-menu .tm-item:disabled, .topo-menu .tm-info { color: #6e7681; cursor: default; font-size: 11.5px; }
+
+/* ══════════════ мобильная адаптация (телефон) ══════════════ */
+@media (max-width: 680px) {
+  body { font-size: 14px; }
+  main { padding: .8rem .6rem; }
+
+  /* шапка: brand + часы/выход в строке, nav — свайпаемая полоса снизу */
+  .topbar { flex-wrap: wrap; padding: .4rem .6rem; gap: .4rem .6rem; }
+  .topbar-shield { width: 32px; height: 32px; margin: 0; }
+  .brand-text { font-size: .95rem; }
+  #clock { margin-left: auto; font-size: .8rem; }
+  .logout-btn { padding: .3rem .55rem; font-size: .82rem; }
+  .topbar nav {
+    order: 5; flex-basis: 100%; flex: 0 0 100%;
+    flex-wrap: nowrap; overflow-x: auto; gap: .15rem;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    padding-bottom: .15rem; border-top: 1px solid var(--border); padding-top: .35rem;
+  }
+  .topbar nav::-webkit-scrollbar { display: none; }
+  .topbar nav a { white-space: nowrap; padding: .4rem .5rem; font-size: .82rem; }
+  .topbar nav a .ico { width: 0; margin: 0; }         /* иконки убираем — влезают ярлыки */
+
+  /* сетки — в одну колонку */
+  .kpi-row, .grid, .stat-strip { grid-template-columns: 1fr !important; gap: .8rem; }
+  .grid-2 { grid-template-columns: 1fr; }
+  .form-grid { grid-template-columns: 1fr !important; gap: .7rem; }
+  .form-row { flex-direction: column; align-items: stretch; gap: .6rem; }
+  .form-row input, .form-row select, .form-row label { max-width: none; width: 100%; }
+
+  .card { padding: .85rem; }
+  .card table { display: block; overflow-x: auto; white-space: nowrap; }
+  .row { flex-wrap: wrap; gap: .5rem .7rem; }
+  .btns { gap: .5rem; }
+  button { padding: .5rem .7rem; }
+
+  /* граф — выше и с тач-жестами (пан/зум), тап по узлу = меню */
+  .topo-card { padding: .5rem; }
+  #topology { min-height: 58vh; touch-action: none; }
+  .topo-menu { min-width: 210px; }
+  .topo-menu .tm-item { padding: 10px 12px; font-size: 13.5px; }   /* палец-френдли */
+
+  .report-frame { height: 58vh; }
+  .console-card { min-height: 60vh; }
+  .section-title { font-size: 1rem; }
+}
+
+@media (max-width: 400px) {
+  .brand-text { display: none; }                      /* совсем узко — только щит */
+  main { padding: .7rem .5rem; }
+  .card { padding: .7rem; }
+}
