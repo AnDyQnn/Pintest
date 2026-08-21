@@ -7,27 +7,40 @@
 и (по подтверждению) эксплуатируют цели и **возвращают только результаты**. «Боевой» трафик
 идёт с конечных нод, а данные и отчёты собираются в одном месте — на мастере.
 
+```mermaid
+flowchart TB
+    admin(["админ<br/>(по AmneziaWG, full-tunnel)"])
+
+    subgraph HOST["ХОСТ · control plane (один netns через vpn)"]
+        direction TB
+        fe["frontend · nginx<br/>443/80 · вебка"]
+        be["backend · FastAPI<br/>вся логика · :8000"]
+        vpn["vpn · AmneziaWG-сервер<br/>awg0 = 10.9.0.1"]
+        pg[("postgres 17<br/>метаданные")]
+        fe --- be
+        be --- pg
+    end
+
+    admin -->|"https://10.9.0.1<br/>(по туннелю, без порта)"| fe
+    fe -. "делят netns c vpn" .- vpn
+    be -. "делят netns c vpn" .- vpn
+
+    vpn ==>|"AmneziaWG · инвертированный туннель<br/>(агент = клиент, дозванивается к хосту)"| AG
+
+    subgraph AG["агенты · роли: scanner / exploiter / relay"]
+        direction LR
+        a1["agent1<br/>:9101"]
+        a2["agent2<br/>:9101"]
+        a3["agent3<br/>:9101"]
+    end
+
+    AG -->|"скан + (по подтверждению) эксплуатация"| T[("targets_net<br/>цели + флаги")]
+    HOST -. "маршрута НЕТ" .-x T
 ```
-        админ (через админский VPN-конфиг)
-              │  HTTPS (самоподпис)
-        ┌─────▼──────── МАСТЕР / control plane ────────────────────────┐
-        │  frontend (nginx)  ──►  backend (FastAPI, вся логика)         │
-        │        │                    │              │                 │
-        │     postgres           vpn (AmneziaWG-сервер, awg0=10.9.0.1)  │
-        │   (метаданные)         backend делит его netns                │
-        │   fail2ban (защита)                                           │
-        │  данные на диске (volume ./data): отчёты · БД · ключи · бэкапы │
-        └────────────────────────┬──────────────────────────────────────┘
-                    AmneziaWG, инвертированный туннель
-                    (агент = клиент, дозванивается к мастеру)
-        ┌───────────────┬─────────┴───────┬───────────────┐
-      agent1          agent2            agent3      роли: scanner / exploiter
-        │  API 10.9.0.X:9101 (только по туннелю)          │
-        └──── скан + (по подтверждению) эксплуатация ─────┘
-                          │
-                    targets_net  ◄── у мастера доступа НЕТ
-                 цели (уязвимые сервисы + флаги)
-```
+
+> Хост целей не видит (`HOST -x targets_net`) — сканирует и эксплуатирует только агент.
+> Вебка доступна **по туннелю без порта** (`https://10.9.0.1`), т.к. `frontend` и `backend`
+> делят сетевой namespace `vpn`-контейнера (где живёт `awg0`). Данные — на диске (`./data`).
 
 ---
 
@@ -38,10 +51,10 @@
 | Контейнер | Ответственность |
 |-----------|-----------------|
 | **backend** (FastAPI) | Оркестрация, provisioning, VPN-управление, цели, отчёты, DIFF, бэкапы, обновления, эксплуатация. Делит netns с `vpn`, поэтому напрямую видит туннель и достаёт агентов по `10.9.0.X`. |
-| **frontend** (nginx) | Статика дашборда + reverse-proxy на backend, HTTPS (самоподпис). Анимированная топология, живой статус по WebSocket. |
-| **postgres** | Durable-метаданные: агенты, джобы, чанки, находки, захваты, бэкапы. |
-| **vpn** | AmneziaWG-сервер (userspace `amneziawg-go`) + внутренний control-API (пиры/ключи/статус). |
-| **fail2ban** | Защита хоста от перебора SSH — ставится на **сам хост** из `install.sh` (apt + systemctl), следит за реальным sshd. Не контейнер. |
+| **frontend** (nginx) | Статика дашборда + reverse-proxy на backend (`127.0.0.1:8000`), HTTPS (самоподпис). **Делит netns с `vpn`** → nginx слушает на `awg0`, поэтому вебка доступна **по туннелю без порта** (`https://10.9.0.1`), порты 443/80 публикуются на сервисе `vpn`. Анимированная топология, живой статус по WebSocket. |
+| **postgres 17** | Durable-метаданные: агенты, джобы, чанки, находки, захваты, admin-конфиги, юзеры. Схема — [`schema.dbml`](schema.dbml). |
+| **vpn** | AmneziaWG-сервер (userspace `amneziawg-go`) + внутренний control-API (пиры/ключи/статус/reload). NAT (MASQUERADE) для full-tunnel админ-клиентов (интернет через VPN). |
+| **fail2ban** | Защита от перебора SSH — на **самом хосте** из `install.sh` и на **каждой агент-ноде** из `deploy.sh` (apt + systemctl, `backend=systemd`/journald + ignoreip приватных сетей). Не контейнер. |
 
 **Модули backend** (`host/backend/app/`):
 - `orchestrator.py` — чанк-леджер, раздача агентам, failover, слияние сводного отчёта.
@@ -207,20 +220,117 @@
   хост → агент → foothold цели`. Не PTY (каждая команда — отдельный вызов), но достаточно для
   управления взятым хостом.
 
-### 11. Админский VPN-доступ
+### 11. Админский VPN-доступ (full-tunnel: вебка + интернет через VPN)
 Админ подключается к вебке НЕ напрямую, а по AmneziaWG. Хост генерирует персональный клиентский
 `awg0.conf` (`admin_vpn.create`: ключи + туннельный IP с верхнего конца диапазона + пир на сервере)
-— админ скачивает `.conf` во вкладке «VPN», поднимает туннель и заходит на control plane по его
-адресу в туннеле. Тот же механизм, что и вброс ключей агентам.
+— админ скачивает `.conf` во вкладке «VPN» (или берёт bootstrap-конфиг после install), поднимает
+туннель и открывает `https://10.9.0.1` (адрес хоста в туннеле, без порта).
+- **Full-tunnel по умолчанию** (`ADMIN_VPN_FULL_TUNNEL=1`): через VPN идёт И вебка, И интернет —
+  сервер NAT-ит трафик в WAN (`awg.ensure_forwarding`: MASQUERADE `10.9.0.0/24` → WAN + forward).
+- **«Умный» split**: `AllowedIPs` = весь интернет МИНУС приватные сети клиента (10/8, 172.16/12,
+  192.168/16, 169.254/16, 100.64/10), чтобы full-tunnel не рвал локалку админа; сеть управления
+  `10.9.0.0/24` принудительно остаётся в туннеле (там панель). Клиент-конфиг: `MTU=1280` +
+  обфускация-параметры сервера + `DNS`. Агентам, наоборот, выдаётся split `10.9.0.0/24` (их
+  интернет через хост гнать не надо). `ADMIN_VPN_FULL_TUNNEL=0` → админам тоже split.
 
 ### Автоопределение адреса хоста
 Клиент-конфигу агента нужен адрес, куда звонить. `AWG_ENDPOINT` теперь **опционален**: если пуст,
 `vpn/awg.resolved_endpoint()` определяет адрес сам (внешний сервис → IP исходящего интерфейса).
 Хардкодить не нужно; задаётся явно только при сложном NAT.
 
+## Схема БД (PostgreSQL 17)
+
+Полная схема в формате **DBML** — [`schema.dbml`](schema.dbml) (вставь на
+[dbdiagram.io](https://dbdiagram.io) для интерактивной ER-диаграммы). В самой БД внешних
+ключей нет — связи логические (id-агентов/джоб как TEXT), показаны ниже как их читает код.
+
+```mermaid
+erDiagram
+    jobs      ||--o{ chunks   : "режется на"
+    jobs      ||--o{ findings : "даёт находки"
+    agents    ||--o{ chunks   : "назначены"
+    agents    ||--o{ captures : "через агента"
+    agents    ||--o{ pivot_hosts : "pivot через"
+
+    agents {
+        text id PK
+        text name
+        int  ssh_port
+        text tunnel_ip "10.9.0.X"
+        jsonb roles "scanner|exploiter|relay"
+        text status "provisioning|online|lost|destroyed"
+    }
+    jobs {
+        text id PK
+        text mode "sequential|parallel"
+        text status "pending|running|done|failed|cancelled"
+        text report_dir
+    }
+    chunks {
+        text job_id FK
+        text chunk_id
+        text agent_id FK "failover переназначает"
+        text status "pending|assigned|done|failed"
+    }
+    findings {
+        int  id PK
+        text job_id FK
+        text host
+        text cve
+        float cvss
+    }
+    captures {
+        int  id PK
+        text agent_id FK
+        text target
+        text phase "check|capture"
+        text flag "снятый CTF-флаг"
+    }
+    pivot_hosts {
+        text pivot "плацдарм (двудомный)"
+        text hidden_ip "хост скрытой сети"
+        text agent_id FK
+    }
+    admin_configs {
+        text name PK
+        text tunnel_ip
+        text conf "клиентский awg0.conf"
+    }
+    users {
+        text login PK
+        text pw_hash "sha256(secret:pass)"
+    }
+    targets {
+        int  id PK
+        jsonb canonical "после чистки"
+    }
+    settings {
+        text key PK
+        jsonb value
+    }
+```
+
+Отдельные (без связей) таблицы: `targets` (списки целей из UI), `admin_configs` (VPN-доступы),
+`users` (аккаунты вебки), `settings` (key/value). Время — epoch-секунды (`double precision`).
+
+---
+
+## Установка, хардненинг, обновления
+
+- **Хост:** `sudo bash host/install.sh` — Docker → хардненинг → сборка стека. Цветной пошаговый
+  вывод (шумный apt/docker — в `/tmp/pintest-setup.log`); общий `host/lib.sh` (шаги, мягкий мерж
+  `config.env`, `detect_ssh_port`). PG17; `--fresh` = чистый старт (снести `host/data`).
+- **SSH-порт при установке:** можно перенести sshd на нестандартный порт — `sed Port` +
+  **маскировка `ssh.socket`** (иначе socket-активация Ubuntu 24.04 вернёт 22 после апдейта);
+  ufw включается только после подтверждения (`ss`), что порт слушает — **без лок-аута**.
+- **Хардненинг:** ufw (SSH-порт + 80/443 + 51820/udp), fail2ban (`backend=systemd`/journald +
+  ignoreip приватных сетей — админ из VPN/LAN себя не забанит), sysctl (SYN-флуд/спуфинг).
+  На агент-нодах — тот же fail2ban+ufw из `deploy.sh` под её реальный SSH-порт (от root).
+- **Мягкий мерж `config.env`:** install/update дописывают в существующий конфиг только
+  недостающие ключи из `config.example.env`, не трогая значения.
+
 ## Переносимость
 
 Продуктовый код (`pintest/`, `core/`, `exploits/`, `agent/`, `host/`) не содержит «лабовых»
 веток — всё через ENV. `lab/` только инстанцирует те же образы и разводит сети. Перенос в
 реальную лабу = запуск тех же `install.sh` на реальных серверах, правятся лишь адреса/креды.
-```

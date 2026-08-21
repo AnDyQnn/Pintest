@@ -56,27 +56,34 @@ bash lab/build.sh                      # соберёт всё и подниме
 
 Всё поведение — через ENV/конфиг, «лабовых» веток в продукте нет. На реальных Ubuntu-серверах:
 
-- **Хост:** `cd host && sudo ./install.sh` (ставит Docker, хардненинг, поднимает стек). Адрес хоста (`AWG_ENDPOINT`) **определяется сам** — правишь `config.env` только при сложном NAT.
+- **Хост:** `cd host && sudo bash install.sh` (Docker, хардненинг ufw+fail2ban, стек; цветной пошаговый вывод). Адрес хоста (`AWG_ENDPOINT`) **определяется сам** — правишь `config.env` только при сложном NAT. Спросит SSH-порт (Enter — текущий; другой — безопасно перенесёт sshd). Чистый старт: `--fresh`. Вход в вебку — по VPN на `https://<host>` (bootstrap-конфиг лежит в `host/data/bootstrap-admin.conf`).
 - **Агенты:** на нодах вручную ставить **ничего не нужно** и репу клонировать нельзя. В вебке → «Агенты» → «Добавить ноду»: SSH-креды сервера + галка **«полная установка»**. Хост сам зайдёт по SSH, **скопирует код с себя (без git clone)**, поставит и поднимет контейнер-агента, вбросит туннель и взведёт self-destruct. Ноде нужен только доступный SSH.
 
 Подробно — в [docs/usage.md](docs/usage.md).
 
 ## Архитектура кратко
 
-```
-                 вебка (HTTPS, самоподпис)
-                        │
-     ┌──────────────────┴─────────────────── ХОСТ (control plane) ───────┐
-     │  frontend(nginx) · backend(FastAPI) · postgres · vpn(AmneziaWG)    │
-     │  данные на диске (volume): отчёты/БД/ключи/бэкапы                  │
-     └───────────────┬───────────────────────────────────────────────────┘
-        AmneziaWG (инвертированный туннель, агент = клиент)
-     ┌───────────────┼───────────────┬───────────────┐
-   agent1          agent2          agent3        (роли: scanner / exploiter)
-     │               │               │
-     └──── сканируют/эксплуатируют цели, отчёты по API → на хост ─────────┘
-                     │
-             targets_net (у хоста доступа НЕТ)
+```mermaid
+flowchart TB
+    admin(["админ · по AmneziaWG (full-tunnel)"])
+    subgraph HOST["ХОСТ · control plane (один netns через vpn)"]
+        fe["frontend · nginx"]
+        be["backend · FastAPI"]
+        vpn["vpn · AmneziaWG (awg0=10.9.0.1)"]
+        pg[("postgres 17")]
+        fe --- be --- pg
+    end
+    admin -->|"https://10.9.0.1 (без порта)"| fe
+    fe -. netns .- vpn
+    be -. netns .- vpn
+    vpn ==>|"туннель (агент = клиент)"| AG
+    subgraph AG["агенты · scanner / exploiter / relay"]
+        a1[agent1] --- a2[agent2] --- a3[agent3]
+    end
+    AG -->|"скан + эксплуатация"| T[("цели + флаги")]
+    HOST -. "нет маршрута" .-x T
 ```
 
-Подробнее — [docs/architecture.md](docs/architecture.md).
+- **Данные — на диске** (`./data`): БД, ключи VPN, отчёты, бэкапы — переживают пересоздание контейнеров.
+- **Вебка по туннелю без порта** (`https://10.9.0.1`): `frontend`+`backend` делят netns `vpn`-контейнера.
+- Схема БД — [docs/schema.dbml](docs/schema.dbml). Подробнее — [docs/architecture.md](docs/architecture.md).

@@ -61,8 +61,9 @@ docker compose -f lab/docker-compose.yml down -v; rm -rf lab/data   # снест
 ```bash
 git clone https://github.com/Reider0/Pintest.git
 cd Pintest/host
-sudo ./install.sh
+sudo bash install.sh          # --fresh — чистый старт (снести host/data)
 ```
+Установщик спросит **SSH-порт** (Enter — оставить текущий; другой — безопасно перенесёт sshd).
 Публичный IP хоста (`AWG_ENDPOINT`) **определяется сам** — руками прописывать не надо
 (впиши только при сложном NAT/нескольких адресах). Свои креды задаёшь ДО первого старта
 в `host/config.env` (иначе будет дефолт `admin/admin`):

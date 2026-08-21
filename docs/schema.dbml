@@ -1,0 +1,154 @@
+// ===================================================================
+//  Pintest — схема БД control plane (PostgreSQL 17).
+//  Источник истины: host/backend/app/db.py (SCHEMA, CREATE TABLE IF NOT EXISTS).
+//  Формат DBML (dbdiagram.io / dbml.org) — вставь целиком на https://dbdiagram.io
+//  для красивой ER-диаграммы.
+//
+//  ВАЖНО: в самой БД внешних ключей НЕТ (связи логические, значения TEXT-id
+//  агентов/джоб). Ref-ы ниже — ДОКУМЕНТАЦИЯ связей, как их читает код
+//  (topology.py, reports.py, exploit_runner.py), а не реальные FK-констрейнты.
+//  Время хранится как epoch-секунды (DOUBLE PRECISION), не timestamp.
+// ===================================================================
+
+Project pintest {
+  database_type: 'PostgreSQL'
+  Note: 'Control plane распределённого сетевого аудита. Хост оркеструет агентов по AmneziaWG; агенты сканируют/эксплуатируют цели, результаты стекаются сюда.'
+}
+
+// ─────────────────────────── агенты и оркестрация ───────────────────────────
+
+Table agents {
+  id          text [pk, note: 'внутренний id ноды (генерит хост)']
+  name        text [not null, note: 'человекочитаемое имя (в UI/графе)']
+  ssh_host    text [note: 'адрес ноды для provisioning по SSH']
+  ssh_port    int  [note: 'порт sshd ноды (виден на топологии)']
+  ssh_user    text
+  tunnel_ip   text [note: 'адрес ноды внутри AmneziaWG (10.9.0.X)']
+  pubkey      text [note: 'публичный ключ пира AmneziaWG']
+  roles       jsonb [default: `'["scanner"]'`, note: 'scanner | exploiter | relay']
+  status      text  [default: 'provisioning', note: 'provisioning | online | lost | destroyed']
+  last_seen   float8 [default: 0, note: 'epoch последнего heartbeat']
+  meta        jsonb [default: `'{}'`, note: 'live-метрики (cpu/mem) и прочее']
+  created_at  float8 [default: `extract(epoch from now())`]
+
+  Note: 'Удалённые ноды-агенты. Provisioning по SSH, работа — только по туннелю (agent_api :9101).'
+}
+
+Table jobs {
+  id           text [pk, note: 'id прогона аудита']
+  opts         jsonb [note: 'опции скана (порты/тайминг/combined-CVE)']
+  mode         text  [note: 'sequential | parallel']
+  status       text  [default: 'pending', note: 'pending | running | done | failed | cancelled']
+  total        int   [default: 0, note: 'всего целей в джобе']
+  report_dir   text  [note: 'путь к каталогу сводного отчёта (на volume)']
+  diff_against text  [note: 'id прошлой джобы для DIFF, если задан']
+  stats        jsonb [default: `'{}'`]
+  created_at   float8 [default: `extract(epoch from now())`]
+  finished_at  float8
+
+  Note: 'Прогон аудита: список целей режется на чанки и раздаётся агентам.'
+}
+
+Table chunks {
+  job_id    text [note: 'к какой джобе относится чанк']
+  chunk_id  text [note: 'id чанка внутри джобы']
+  targets   jsonb [note: 'подсписок целей этого чанка']
+  status    text  [default: 'pending', note: 'pending | assigned | done | failed']
+  agent_id  text  [note: 'агент, которому назначен чанк (failover меняет)']
+  progress  jsonb [default: `'{}'`]
+
+  indexes {
+    (job_id, chunk_id) [pk]
+  }
+  Note: 'Единица раздачи целей агенту. При падении агента чанк переназначается (рокировка).'
+}
+
+Table targets {
+  id         int [pk, increment]
+  raw        text  [note: 'сырой ввод оператора (диапазоны/мусор)']
+  canonical  jsonb [note: '{targets:[...], v4n, v6n, notes} — после чистки']
+  created_at float8 [default: `extract(epoch from now())`]
+
+  Note: 'Списки целей, введённые в вебке (чистятся перед сканом).'
+}
+
+// ─────────────────────────── результаты аудита ───────────────────────────
+
+Table findings {
+  id       int [pk, increment]
+  job_id   text [note: 'в какой джобе найдено']
+  host     text [note: 'IP цели']
+  family   text [note: 'класс отпечатка/сервиса']
+  cve      text
+  cvss     float8
+  severity text
+  service  text
+  port     int
+
+  Note: 'CVE-находки по хостам (по ним движок собирает эксплойт «на лету»).'
+}
+
+Table captures {
+  id        int [pk, increment]
+  ts        float8 [default: `extract(epoch from now())`]
+  agent_id  text [note: 'через какого агента взят захват']
+  target    text [note: 'IP захваченной цели']
+  cve       text
+  port      int
+  phase     text    [note: 'check (безопасная проверка) | capture (реальный захват)']
+  success   boolean
+  flag      text    [note: 'снятый CTF-флаг, если найден']
+  data      jsonb   [default: `'{}'`, note: 'детали захвата/foothold']
+
+  Note: 'Журнал эксплуатации: проверки и реальные захваты (флаги/плацдармы).'
+}
+
+Table pivot_hosts {
+  pivot     text [note: 'IP захваченного двудомного узла-плацдарма']
+  agent_id  text [note: 'через какого агента шёл pivot']
+  hidden_ip text [note: 'хост скрытой сети, найденный через плацдарм']
+  ports     jsonb [default: `'[]'`]
+  subnet    text
+  ts        float8 [default: `extract(epoch from now())`]
+
+  indexes {
+    (pivot, hidden_ip) [pk]
+  }
+  Note: 'Скрытые хосты, обнаруженные self-spreading pivot-ом (агенты в эту сеть не ходят напрямую).'
+}
+
+// ─────────────────────────── доступ и настройки ───────────────────────────
+
+Table admin_configs {
+  name       text [pk, note: 'имя админского VPN-доступа']
+  tunnel_ip  text [note: 'выданный туннельный IP (верхний конец диапазона)']
+  pubkey     text [note: 'публичный ключ (для снятия пира)']
+  conf       text [note: 'готовый клиентский awg0.conf (full-tunnel + DNS)']
+  created_at float8 [default: `extract(epoch from now())`]
+
+  Note: 'Админские VPN-конфиги для доступа к вебке по туннелю (bootstrap + созданные вручную).'
+}
+
+Table users {
+  login      text [pk]
+  pw_hash    text [not null, note: 'sha256(SESSION_SECRET + ":" + password)']
+  created_at float8 [default: `extract(epoch from now())`]
+
+  Note: 'Аккаунты вебки. Админ из config.env (ADMIN_USER/PASSWORD) UPSERT-ится на каждом старте.'
+}
+
+Table settings {
+  key   text [pk]
+  value jsonb
+
+  Note: 'Разные key/value-настройки control plane.'
+}
+
+// ─────────────────────────── связи (логические, НЕ FK) ───────────────────────────
+
+Ref: chunks.job_id > jobs.id            // чанк принадлежит джобе
+Ref: chunks.agent_id > agents.id        // чанк назначен агенту (может переназначаться)
+Ref: findings.job_id > jobs.id          // находка найдена в джобе
+Ref: captures.agent_id > agents.id      // захват сделан через агента
+Ref: pivot_hosts.agent_id > agents.id   // pivot шёл через агента
+Ref: jobs.diff_against > jobs.id         // DIFF против прошлой джобы

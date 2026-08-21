@@ -43,7 +43,7 @@ ADMIN_VPN_DNS = os.environ.get("ADMIN_VPN_DNS", "1.1.1.1, 1.0.0.1")   # DNS в �
 # Бэкапы
 BACKUP_KEEP = int(os.environ.get("BACKUP_KEEP", "10"))   # сколько последних снимков держать
 
-VERSION = os.environ.get("PINTEST_VERSION", "0.7.0")
+VERSION = os.environ.get("PINTEST_VERSION", "0.8.0")
 HOST_REPO_DIR = os.environ.get("HOST_REPO_DIR", "/opt/pintest")  # для git-обновления хоста
 
 

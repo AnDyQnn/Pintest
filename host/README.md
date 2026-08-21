@@ -7,10 +7,12 @@
 ## Развёртывание на реальном Ubuntu
 ```bash
 git clone <repo> pintest && cd pintest/host
-sudo ./install.sh        # ставит Docker + ufw/fail2ban, создаёт config.env, поднимает стек
+sudo bash install.sh     # Docker + ufw/fail2ban + PG17 + стек; --fresh = чистый старт
 ```
-Адрес хоста (`AWG_ENDPOINT`) **определяется сам** — прописывать руками нужно только при сложном
-NAT. Дальше подключаешь агентов из вебки (вкладка «Агенты»), они ставятся сами по SSH.
+Цветной пошаговый вывод (лог — `/tmp/pintest-setup.log`). **Спросит SSH-порт** (Enter — текущий;
+другой — безопасно перенесёт sshd, без лок-аута). Адрес хоста (`AWG_ENDPOINT`) **определяется сам**
+— вручную только при сложном NAT. Вебка — по VPN на `https://<host>` (без порта); bootstrap-конфиг
+в `host/data/bootstrap-admin.conf`. Дальше подключаешь агентов из вебки (вкладка «Агенты»).
 
 ## Что внутри
 | Папка / файл | Что это |
@@ -24,7 +26,8 @@ NAT. Дальше подключаешь агентов из вебки (вкл�
 | `config.example.env` | Шаблон конфигурации (копируется в `config.env`; всё поведение — через ENV). |
 
 ## Ключевые ENV (полный список — в `config.example.env` и `backend/app/config.py`)
-`ADMIN_USER/ADMIN_PASSWORD`, `SESSION_SECRET`, `AWG_ENDPOINT` (опц., авто), `AWG_LISTEN_PORT`,
-`CHUNK_SIZE`, `HEARTBEAT_INTERVAL/MISS`, `LIVE_INTERVAL`, `DB_DSN`, `DATA_DIR`.
+`ADMIN_USER/ADMIN_PASSWORD` (UPSERT на каждом старте), `SESSION_SECRET`, `SSH_PORT` (хардненинг),
+`AWG_ENDPOINT` (опц., авто), `AWG_LISTEN_PORT`, `ADMIN_VPN_FULL_TUNNEL`/`ADMIN_VPN_DNS` (интернет
+через VPN), `BACKUP_KEEP`, `CHUNK_SIZE`, `HEARTBEAT_INTERVAL/MISS`, `LIVE_INTERVAL`, `DB_DSN`, `DATA_DIR`.
 
 Архитектура целиком — в [../docs/architecture.md](../docs/architecture.md).

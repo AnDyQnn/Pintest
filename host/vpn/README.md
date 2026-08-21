@@ -10,9 +10,13 @@
 ## Структура
 | Файл | Что это |
 |---|---|
-| `server_api/awg.py` | Управление `awg0` (up/пиры/ключи), server-info, **автоопределение адреса хоста**. |
-| `server_api/main.py` | HTTP control-API для backend: `/status`, `/server-info`, `/genkeys`, `/peer`. |
-| `entrypoint.sh` | Поднять `awg0` + запустить control-API. |
+| `server_api/awg.py` | Управление `awg0` (up/пиры/ключи), server-info, **автоопределение адреса хоста**, `ensure_forwarding` (NAT MASQUERADE `10.9.0.0/24`→WAN для full-tunnel админ-клиентов). |
+| `server_api/main.py` | HTTP control-API для backend: `/status`, `/server-info`, `/genkeys`, `/peer`, `/reload` (перечитать awg0 после restore бэкапа). |
+| `entrypoint.sh` | Поднять `awg0` (+ NAT) + запустить control-API. |
+
+**Интернет через VPN (full-tunnel):** админ-конфиги по умолчанию гонят в туннель и вебку, и
+интернет — `ensure_forwarding()` в `up()` NAT-ит трафик туннеля в WAN. Агентам — split (только
+`10.9.0.0/24`). См. [`../../docs/architecture.md`](../../docs/architecture.md) §11.
 
 ## Автоопределение адреса (endpoint)
 Клиент-конфигу агента нужен адрес, куда звонить. Раньше его хардкодили в `AWG_ENDPOINT`.
