@@ -336,6 +336,11 @@ th{color:var(--muted);font-weight:600}
   .card { padding: .85rem; }
   .card table { display: block; overflow-x: auto; white-space: nowrap; }
   .row { flex-wrap: wrap; gap: .5rem .7rem; }
+  /* карточка ноды: колонка — ONLINE, инфо-блок, затем кнопки полноширинными (0 наложений) */
+  #agents-list .row { flex-direction: column; align-items: stretch; gap: .5rem; }
+  #agents-list .row > .pill { align-self: flex-start; }
+  #agents-list .row .grow { flex: none; }
+  #agents-list .row .mini { width: 100%; margin: 0; }
   .btns { gap: .5rem; }
   button { padding: .5rem .7rem; }
 
@@ -348,10 +353,15 @@ th{color:var(--muted);font-weight:600}
   .report-frame { height: 58vh; }
   .console-card { min-height: 60vh; }
   .section-title { font-size: 1rem; }
+
+  /* окно логина под телефон */
+  .login-overlay { padding: .8rem; }
+  .login-box { padding: 1.3rem 1.25rem 1.6rem; max-width: 100%; }
+  .login-box input, .login-box .btn-primary { font-size: 1rem; }
 }
 
 @media (max-width: 400px) {
-  .brand-text { display: none; }                      /* совсем узко — только щит */
+  .topbar .brand-text { display: none; }               /* топбар: совсем узко — только щит (логин-заголовок остаётся) */
   main { padding: .7rem .5rem; }
   .card { padding: .7rem; }
 }
