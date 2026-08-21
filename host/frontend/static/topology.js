@@ -99,7 +99,7 @@
       minx = Math.min(minx, p.x); miny = Math.min(miny, p.y);
       maxx = Math.max(maxx, p.x); maxy = Math.max(maxy, p.y); });
     if (minx > maxx) return;
-    const pad = 78;                                   // запас в мировых ед. под подписи
+    const pad = 66;                                   // запас в мировых ед. под подписи
     const w = (maxx - minx) + pad * 2, h = (maxy - miny) + pad * 2;
     VIEW.k = Math.min(VB_W / w, VB_H / h, 2.6);        // маленький граф не раздуваем сверх 2.6×
     VIEW.tx = VB_W / 2 - VIEW.k * (minx + maxx) / 2;
@@ -126,7 +126,7 @@
   function seed(id, x, y) { if (!POS[id]) POS[id] = { x, y, vx: 0, vy: 0 }; }
 
   function simulate(nodes, edges, iters) {
-    const REP = 3300, DAMP = 0.85, SPRING = 0.033, CENTER = 0.0018;
+    const REP = 6200, DAMP = 0.86, SPRING = 0.026, CENTER = 0.0011;
     for (let it = 0; it < iters; it++) {
       // отталкивание всех пар
       for (let i = 0; i < nodes.length; i++) {
@@ -171,7 +171,7 @@
     agents.forEach((a) => edges.push({ a: "host", b: a.id, len: 165 }));
     targets.forEach((t) => {
       const home = t.route_agent || t.agent_id;
-      if (home) edges.push({ a: home, b: t.ip, len: 88 });
+      if (home) edges.push({ a: home, b: t.ip, len: 140 });
       else edges.push({ a: "host", b: t.ip, len: 120 });   // «в очереди» / без агента
       if (t.exploiter_id && t.exploiter_id !== home)
         edges.push({ a: t.exploiter_id, b: t.ip, len: 95 });
@@ -242,7 +242,7 @@
     const alive = {}; nodes.forEach((n) => { alive[n.id] = 1; });
     Object.keys(POS).forEach((id) => { if (!alive[id]) delete POS[id]; });
 
-    if (sig !== lastSig) { simulate(nodes, edges, 320); lastSig = sig; userAdjusted = false; }
+    if (sig !== lastSig) { simulate(nodes, edges, 420); lastSig = sig; userAdjusted = false; }
     if (!userAdjusted) fitView(nodes);          // вписать граф в карту (пока пользователь не трогал вид)
 
     // ── рисуем ──
@@ -340,7 +340,7 @@
 
     // ── подписи (жадное разведение в экранных координатах) ──
     const placed = [];
-    const gapX = 76 / VIEW.k, gapY = 24 / VIEW.k;     // требуемый зазор в мировых ед. (учёт зума)
+    const gapX = 90 / VIEW.k, gapY = 42 / VIEW.k;     // требуемый зазор в мировых ед. (учёт зума)
     function tryLabel(x, y, main, sub, cls) {
       for (const q of placed) if (Math.abs(x - q.x) < gapX && Math.abs(y - q.y) < gapY) return false;
       placed.push({ x, y });
