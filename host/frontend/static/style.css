@@ -287,3 +287,20 @@ th{color:var(--muted);font-weight:600}
 .loot-log{margin-top:.5rem}
 .loot-log summary{cursor:pointer;color:var(--muted);font-size:.85rem}
 .loot-card code{color:var(--accent);font-family:var(--mono)}
+
+/* ── контекстное меню узла топологии ── */
+.topo-menu {
+  position: fixed; z-index: 9999; min-width: 190px;
+  background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.55); padding: 4px; overflow: hidden;
+}
+.topo-menu .tm-title {
+  font-size: 12px; font-weight: 600; color: #dbe9ff;
+  padding: 6px 10px 8px; border-bottom: 1px solid #21262d; margin-bottom: 4px;
+}
+.topo-menu .tm-item {
+  display: block; width: 100%; text-align: left; background: none; border: 0;
+  color: #c9d1d9; font-size: 12.5px; padding: 7px 10px; border-radius: 6px; cursor: pointer;
+}
+.topo-menu .tm-item:hover:not(:disabled) { background: #21262d; color: #fff; }
+.topo-menu .tm-item:disabled, .topo-menu .tm-info { color: #6e7681; cursor: default; font-size: 11.5px; }

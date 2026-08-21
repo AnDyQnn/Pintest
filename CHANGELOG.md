@@ -3,6 +3,28 @@
 Формат — по [Keep a Changelog](https://keepachangelog.com/ru/), версии — [SemVer](https://semver.org/lang/ru/).
 Версия продукта задаётся через `PINTEST_VERSION` (дефолт в `config.py`) и видна в вебке/health/отчётах.
 
+## [0.7.0] — 2026-08-21
+
+### Добавлено
+- **Real-time автоэксплуатация (движок).** Скан определил CVE по хосту → движок собирает
+  «модуль на лету» из данных каталога и бьёт: `resolve_host` (`exploits/engine.py`) + примитивы
+  по классам (`exploits/primitives.py`: веб-RCE по delivery-спеке header/body/put_get; дефолт-креды
+  ftp/redis/http-basic/ssh) + каталог отпечатков (`exploits/catalog_data.py`, сотни CVE = данные,
+  не файлы). `auto_exploit()` = находка → подбор → check → (confirm) capture. Эндпоинты
+  `/exploit/auto`, `/api/exploit/auto`, `/api/exploit/auto_ip`. Проверено на реальных контейнерах.
+- **4 модуля веб-RCE** под учебную мишень `lab/targets/webrce/` (SIM_CVE): Struts CVE-2017-5638,
+  Drupalgeddon2 CVE-2018-7600, PHP-CGI CVE-2012-1823, Tomcat PUT-JSP CVE-2017-12617.
+- **Self-spreading pivot_auto.** Захваченный плацдарм сам сканирует скрытую подсеть и
+  авто-захватывает найденное СВОИМ трафиком (движок подбирает эксплойт по портам). Эндпоинты
+  `/pivot/auto`, `/api/pivot/auto`. На живой лабе взяты 2 скрытых хоста через vsftpd-плацдарм.
+- **Клик по узлу топологии → меню действий** (авто-эксплойт / консоль / pivot-авто) — визуально проще.
+- **Bootstrap admin VPN при install хоста**: первый админский `.conf` генерится на старте бэкенда
+  и кладётся в `host/data/bootstrap-admin.conf` — вход в вебку по туннелю без ручной возни.
+
+### Убрано
+- **Заглушка-fail2ban** (контейнер-в-контейнере, ничего не защищал). Реальный fail2ban ставится
+  на сам хост из `install.sh` (apt + systemctl), следит за настоящим sshd.
+
 ## [0.6.0] — 2026-08-21
 
 ### Добавлено / Изменено

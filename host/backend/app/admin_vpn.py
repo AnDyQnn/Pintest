@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import ipaddress
+import os
 import time
 from typing import Dict, List, Optional
 
@@ -59,3 +60,24 @@ def delete(name: str) -> Dict:
         pass
     db.q("DELETE FROM admin_configs WHERE name=%s", (name,))
     return {"ok": True}
+
+
+BOOTSTRAP_NAME = "admin-bootstrap"
+
+
+def ensure_bootstrap():
+    """Первый старт: если админ-конфигов нет — создать bootstrap и положить файл в DATA_DIR,
+    чтобы оператор сразу вошёл в вебку по VPN (проблема курицы-яйца). Идемпотентно."""
+    try:
+        if db.all_("SELECT name FROM admin_configs LIMIT 1"):
+            return None
+        res = create(BOOTSTRAP_NAME)
+        path = config.DATA_DIR / "bootstrap-admin.conf"
+        path.write_text(res["conf"], encoding="utf-8")
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+        return str(path)
+    except Exception as e:  # noqa: BLE001  — VPN мог ещё не подняться; не валим старт
+        return f"[bootstrap отложен: {e}]"

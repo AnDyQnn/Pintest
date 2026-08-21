@@ -55,6 +55,13 @@ class ExploitCaptureIn(BaseModel):
     confirm: bool = False       # человек подтвердил закрепление в UI
 
 
+class AutoExploitIn(BaseModel):
+    host: Dict                  # находка скана: {"ip","ports":[[port,proto,svc,banner]],"cves":{CVE:cvss}}
+    confirm: bool = False       # человек включил авто-захват (иначе только разведка)
+    min_cvss: float = 7.0       # порог важности CVE для атаки
+    max_targets: int = 25
+
+
 class PivotIn(BaseModel):
     target: str
     cve: str
@@ -68,6 +75,13 @@ class PivotExploitIn(BaseModel):
     hidden_target: str
     hidden_cve: str
     port: int = 0
+
+
+class PivotAutoIn(BaseModel):
+    pivot_host: str
+    pivot_cve: str
+    subnet: str
+    confirm: bool = False       # человек включил авто-захват через плацдарм
 
 
 class ShellExecIn(BaseModel):
@@ -217,6 +231,17 @@ def exploit_capture(body: ExploitCaptureIn):
     return res
 
 
+@app.post("/exploit/auto")
+def exploit_auto(body: AutoExploitIn):
+    """Real-time: по находке скана движок сам подбирает CVE -> check -> (confirm) capture.
+
+    Без confirm — только разведка (какие CVE реально берутся). С confirm — авто-захват
+    (нужна роль exploiter). Это «по каждой CVE прогон и атака» одним вызовом.
+    """
+    return exploit_runner.auto_exploit(body.host, confirm=body.confirm,
+                                       min_cvss=body.min_cvss, max_targets=body.max_targets)
+
+
 @app.post("/update")
 def update(body: UpdateIn):
     """Применить бандл обновления, присланный хостом, и перезапуститься."""
@@ -242,6 +267,12 @@ def exploit_shell(body: ShellExecIn):
 def pivot(body: PivotIn):
     """Развед-скан скрытой подсети через плацдарм (реальный pivot). Требует роли exploiter."""
     return exploit_runner.pivot(body.target, body.cve, body.subnet, body.ports or None)
+
+
+@app.post("/pivot/auto")
+def pivot_auto(body: PivotAutoIn):
+    """Self-spreading: скан скрытой подсети через плацдарм + авто-эксплуатация найденного его трафиком."""
+    return exploit_runner.pivot_auto(body.pivot_host, body.pivot_cve, body.subnet, confirm=body.confirm)
 
 
 # ---- интерактивная консоль (PTY) ------------------------------------------

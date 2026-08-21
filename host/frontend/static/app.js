@@ -380,8 +380,10 @@ function lootCard(i) {
     </div>
     ${log}</div>`;
 }
+const WEB_CVE = ["CVE-2021-41773", "CVE-2014-6271", "CVE-2017-5638",
+                 "CVE-2018-7600", "CVE-2012-1823", "CVE-2017-12617"];
 const PIVOT_CVE_BY_PORT = {   // какие эксплойты пробовать по открытому порту скрытой цели
-  80: ["CVE-2021-41773", "CVE-2014-6271"], 8080: ["CVE-2021-41773", "CVE-2014-6271"],
+  80: WEB_CVE, 8080: WEB_CVE,
   21: ["CVE-2011-2523"],
 };
 window.pivotExploit = async (pivotHost, pivotCve) => {
@@ -649,3 +651,73 @@ window.addEventListener("resize", () => { const s = CON.sessions[CON.active]; if
 // ── старт ───────────────────────────────────────────────────────────────────
 initFx(); initLoginLogo();
 (async () => { try { const m = await api("/me"); m.authenticated ? showApp() : showLogin(); } catch (e) { showLogin(); } })();
+
+// ─────────────── контекстное меню узла топологии (клик по узлу) ───────────────
+let _topoMenu = null;
+function closeTopoMenu() { if (_topoMenu) { _topoMenu.remove(); _topoMenu = null; } }
+document.addEventListener("click", (e) => { if (!e.target.closest(".topo-menu")) closeTopoMenu(); });
+
+async function _pickExploiter() {
+  const exps = await api("/exploiters").catch(() => []);
+  if (!exps.length) { alert("Нет ноды с ролью exploiter — назначь во вкладке «Агенты»."); return null; }
+  return exps[0].id;
+}
+function _gotoTab(tab) { const a = document.querySelector(`.topbar nav a[data-tab="${tab}"]`); if (a) a.click(); }
+
+window.onTopoNode = (node, ev) => {
+  ev.stopPropagation();
+  closeTopoMenu();
+  const m = document.createElement("div");
+  m.className = "topo-menu";
+  m.style.left = Math.min(ev.clientX + 4, window.innerWidth - 220) + "px";
+  m.style.top = Math.min(ev.clientY + 4, window.innerHeight - 180) + "px";
+  const title = node.kind === "agent"
+    ? `Агент ${node.name || node.id}` + (node.status ? ` · ${node.status}` : "")
+    : `${node.ip}` + (node.hidden ? " · скрыт" : node.status ? ` · ${node.status}` : "");
+  const rows = [`<div class="tm-title">${esc(title)}</div>`];
+  const act = [];
+  if (node.kind === "target") {
+    if (node.status !== "captured") act.push(["🎯 Авто-эксплойт", () => autoExploitIp(node.ip)]);
+    if (node.status === "captured") act.push(["🖥 Открыть консоль цели", () => _gotoTab("console")]);
+    if (node.is_relay || node.status === "captured")
+      act.push(["🛰 Pivot-авто (захватить за узлом)", () => pivotAutoNode(node.ip, (node.candidates || [])[0])]);
+    act.push(["ℹ Показать в «Эксплуатации»", () => _gotoTab("exploit")]);
+  } else if (node.kind === "agent") {
+    act.push([`роли: ${(node.roles || []).join(", ") || "—"}`, null]);
+    act.push([`туннель: ${node.tunnel_ip || "—"}`, null]);
+    act.push(["🖥 Консоль агента", () => _gotoTab("console")]);
+  }
+  m.innerHTML = rows.join("");
+  act.forEach(([label, fn]) => {
+    const b = document.createElement("button");
+    b.className = "tm-item" + (fn ? "" : " tm-info"); b.textContent = label;
+    if (fn) b.onclick = () => { fn(); }; else b.disabled = true;
+    m.appendChild(b);
+  });
+  document.body.appendChild(m);
+  _topoMenu = m;
+};
+
+window.autoExploitIp = async (ip) => {
+  closeTopoMenu();
+  const aid = await _pickExploiter(); if (!aid) return;
+  if (!confirm(`Авто-эксплуатировать ${ip}?\nДвижок сам подберёт CVE по находкам скана и попробует захватить.`)) return;
+  try {
+    const r = await api("/exploit/auto_ip", { method: "POST", body: { agent_id: aid, ip, confirm: true } });
+    alert(`${ip}:\n кандидатов ${r.candidates || 0} · уязвимо ${r.exploitable || 0} · захвачено ${r.captured || 0}`);
+  } catch (e) { alert("Ошибка авто-эксплуатации: " + e); }
+  loadOverview();
+};
+
+window.pivotAutoNode = async (ip, cve) => {
+  closeTopoMenu();
+  if (!cve) { alert("У этого узла нет известного эксплойта для pivot (нужен захваченный/двудомный узел)."); return; }
+  const aid = await _pickExploiter(); if (!aid) return;
+  if (!confirm(`Pivot-авто через ${ip}:\nскан скрытой сети (10.66.0.0/24) + авто-захват найденного его трафиком?`)) return;
+  try {
+    const r = await api("/pivot/auto", { method: "POST", body: { agent_id: aid, pivot_host: ip, pivot_cve: cve, subnet: "10.66.0", confirm: true } });
+    const cap = (r.captured || []).length;
+    alert(`Pivot ${ip}: скрытых хостов ${(r.hosts || []).length} · захвачено ${cap}`);
+  } catch (e) { alert("Ошибка pivot-авто: " + e); }
+  loadOverview();
+};

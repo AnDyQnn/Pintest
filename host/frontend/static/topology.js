@@ -307,6 +307,10 @@
       let c = cut ? "#f85149" : (TGT_COL[t.status] || "#8b949e");
       if (probing) c = "#58a6ff"; else if (alive) c = "#2dd4bf";     // пинг — синий, живой — бирюзовый
       const g = el("g", { opacity: cut ? "0.72" : "1" }, root);
+      g.style.cursor = "pointer";
+      g.addEventListener("click", (ev) => { window.onTopoNode && window.onTopoNode({
+        kind: "target", ip: t.ip, status: t.status, candidates: t.candidates || [],
+        exploiter_id: t.exploiter_id, hidden: t.hidden, is_relay: t.is_relay, ports: t.ports || [] }, ev); });
       // анимации — у каждого состояния свой ритм/цвет:
       if (probing) expandRing(g, p, "#58a6ff", "1s");                          // пинг — быстрая волна
       else if (t.status === "captured" && !cut) expandRing(g, p, "#a371f7", "2s"); // захват — медленная фиолетовая
@@ -327,6 +331,10 @@
       const p = P(a.id); if (!p) return;
       const c = AG_COL[a.status] || "#8b949e";
       const g = el("g", {}, root);
+      g.style.cursor = "pointer";
+      g.addEventListener("click", (ev) => { window.onTopoNode && window.onTopoNode({
+        kind: "agent", id: a.id, name: a.name, status: a.status,
+        roles: a.roles || [], tunnel_ip: a.tunnel_ip }, ev); });
       if (a._active) {
         el("circle", { cx: p.x, cy: p.y, r: 34, fill: "none", stroke: "#58a6ff", "stroke-width": 2, class: "aglow" }, g);
         el("circle", { cx: p.x, cy: p.y, r: 34, fill: "none", stroke: "#58a6ff", "stroke-width": 1, "stroke-dasharray": "4 6" }, g)

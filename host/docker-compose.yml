@@ -1,5 +1,6 @@
 # host/docker-compose.yml — стек основного сервера (control plane).
-# Стандартные контейнеры: backend + frontend + postgres + vpn + fail2ban.
+# Стандартные контейнеры: backend + frontend + postgres + vpn.
+# (fail2ban — НЕ контейнер: ставится на сам хост из install.sh, защищает реальный sshd.)
 # Данные — на диске через bind-volume ./data (не внутри контейнеров).
 # В докер-лабе тот же стек поднимает lab/docker-compose.yml (те же образы/контекст).
 services:
@@ -61,12 +62,8 @@ services:
     networks: [pintest]
     restart: unless-stopped
 
-  fail2ban:
-    build: { context: .., dockerfile: host/fail2ban/Dockerfile }
-    image: pintest-fail2ban:latest
-    cap_add: [NET_ADMIN, NET_RAW]
-    networks: [pintest]
-    restart: unless-stopped
+  # fail2ban НЕ контейнер: настоящая защита ставится на сам хост из host/install.sh
+  # (apt install fail2ban + systemctl) — следит за реальным sshd и банит на фаерволе хоста.
 
 networks:
   pintest:

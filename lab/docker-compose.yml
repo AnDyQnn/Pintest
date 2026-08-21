@@ -57,12 +57,6 @@ services:
     volumes: [ ./data/certs:/etc/nginx/certs ]
     networks: [ mgmt_net ]
 
-  fail2ban:
-    build: { context: .., dockerfile: host/fail2ban/Dockerfile }
-    image: pintest-fail2ban:latest
-    cap_add: [ NET_ADMIN, NET_RAW ]
-    networks: [ mgmt_net ]
-
   # ------------------------------ агенты -----------------------------------
   agent1:
     build: { context: .., dockerfile: agent/Dockerfile }
@@ -116,6 +110,24 @@ services:
     image: nginx:1.27-alpine                # «пропатченный» хост для контраста
     networks: { targets_net: { ipv4_address: 172.30.0.15 } }
 
+  # --- веб-RCE цели: одна мишень (webrce) под разные CVE через SIM_CVE ---
+  target-struts:                            # CVE-2017-5638 (OGNL в Content-Type)
+    build: { context: .., dockerfile: lab/targets/webrce/Dockerfile }
+    environment: { SIM_CVE: struts, SIM_BANNER: "Apache-Coyote/1.1" }
+    networks: { targets_net: { ipv4_address: 172.30.0.16 } }
+  target-drupal:                            # CVE-2018-7600 (Drupalgeddon2)
+    build: { context: .., dockerfile: lab/targets/webrce/Dockerfile }
+    environment: { SIM_CVE: drupal, SIM_BANNER: "Apache/2.4.7 (Ubuntu) Drupal/7.57" }
+    networks: { targets_net: { ipv4_address: 172.30.0.17 } }
+  target-phpcgi:                            # CVE-2012-1823 (php-cgi query-string)
+    build: { context: .., dockerfile: lab/targets/webrce/Dockerfile }
+    environment: { SIM_CVE: phpcgi, SIM_BANNER: "Apache/2.4.10 PHP/5.4.3" }
+    networks: { targets_net: { ipv4_address: 172.30.0.18 } }
+  target-tomcat:                            # CVE-2017-12617 (PUT JSP)
+    build: { context: .., dockerfile: lab/targets/webrce/Dockerfile }
+    environment: { SIM_CVE: tomcat, SIM_BANNER: "Apache-Coyote/1.1" }
+    networks: { targets_net: { ipv4_address: 172.30.0.19 } }
+
   # --- СКРЫТЫЙ сегмент: агенты сюда НЕ ходят, только через pivot (vsftpd) ---
   target-hidden-web:
     build: { context: .., dockerfile: lab/targets/apache2449/Dockerfile }
@@ -123,6 +135,10 @@ services:
   target-hidden-ssh:
     build: { context: .., dockerfile: lab/targets/oldssh/Dockerfile }
     networks: { hidden_net: { ipv4_address: 10.66.0.12 } }
+  target-hidden-struts:                     # CVE-2017-5638 в скрытом сегменте — берётся через pivot
+    build: { context: .., dockerfile: lab/targets/webrce/Dockerfile }
+    environment: { SIM_CVE: struts, SIM_BANNER: "Apache-Coyote/1.1" }
+    networks: { hidden_net: { ipv4_address: 10.66.0.13 } }
 
 networks:
   mgmt_net:

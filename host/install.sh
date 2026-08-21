@@ -60,4 +60,20 @@ echo "[install] поднимаю стек хоста…"
 cd "$HERE"
 docker compose --env-file config.env up -d --build
 
-echo "== готово. Вебка: https://<host>:8443  (admin/admin, смени в config.env) =="
+# 5) bootstrap-доступ: ждём backend и вытаскиваем первый админский VPN-конфиг,
+#    сгенерённый на старте (иначе к вебке по туннелю не подключиться)
+echo "[install] жду backend и bootstrap admin VPN…"
+BOOT="$HERE/data/bootstrap-admin.conf"
+for i in $(seq 1 30); do [ -f "$BOOT" ] && break; sleep 2; done
+
+echo
+echo "== готово =="
+if [ -f "$BOOT" ]; then
+  echo "ПЕРВЫЙ ВХОД (VPN): импортируй в AmneziaWG-клиент конфиг:"
+  echo "    $BOOT"
+  echo "  затем открой вебку по туннелю и войди admin/admin (смени в config.env)."
+else
+  echo "bootstrap-конфиг ещё не готов (VPN поднимается) — появится в host/data/bootstrap-admin.conf,"
+  echo "  либо создай админ-конфиг во вкладке «VPN» после первого входа."
+fi
+echo "Вебка: https://<host>:8443"

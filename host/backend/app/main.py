@@ -315,6 +315,50 @@ async def api_exploit_capture(body: ExploitIn, _: bool = Depends(require_auth)):
         exploitation.run_capture, body.agent_id, body.host, body.cve, body.port, body.confirm)
 
 
+class AutoExploitIn(BaseModel):
+    agent_id: str
+    host: Dict                  # находка скана: {"ip","ports","cves"}
+    confirm: bool = False
+    min_cvss: float = 7.0
+    max_targets: int = 25
+
+
+@app.post("/api/exploit/auto")
+async def api_exploit_auto(body: AutoExploitIn, _: bool = Depends(require_auth)):
+    """Real-time автоэксплуатация хоста: движок сам подбирает CVE, проверяет и (с confirm) берёт."""
+    return await run_in_threadpool(exploitation.run_auto, body.agent_id, body.host,
+                                   body.confirm, body.min_cvss, body.max_targets)
+
+
+class PivotAutoIn(BaseModel):
+    agent_id: str
+    pivot_host: str
+    pivot_cve: str
+    subnet: str
+    confirm: bool = False
+
+
+@app.post("/api/pivot/auto")
+async def api_pivot_auto(body: PivotAutoIn, _: bool = Depends(require_auth)):
+    """Self-spreading: через захваченный плацдарм скан скрытой сети + авто-захват найденного."""
+    return await run_in_threadpool(exploitation.run_pivot_auto, body.agent_id,
+                                   body.pivot_host, body.pivot_cve, body.subnet, body.confirm)
+
+
+class AutoIpIn(BaseModel):
+    agent_id: str
+    ip: str
+    confirm: bool = False
+    min_cvss: float = 7.0
+
+
+@app.post("/api/exploit/auto_ip")
+async def api_exploit_auto_ip(body: AutoIpIn, _: bool = Depends(require_auth)):
+    """Авто-эксплуатация цели по IP (находка из последней джобы) — для действия «по клику на графе»."""
+    return await run_in_threadpool(exploitation.run_auto_ip, body.agent_id, body.ip,
+                                   body.confirm, body.min_cvss)
+
+
 @app.get("/api/captures")
 def api_captures(_: bool = Depends(require_auth)):
     return exploitation.captures()
@@ -566,6 +610,7 @@ async def _startup():
     config.ensure_dirs()
     await run_in_threadpool(db.init)
     await run_in_threadpool(users.seed_admin)
+    await run_in_threadpool(admin_vpn.ensure_bootstrap)   # первый вход: bootstrap admin VPN
     asyncio.create_task(agents.heartbeat_loop())
 
 
