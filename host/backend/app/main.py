@@ -617,6 +617,7 @@ async def live(ws: WebSocket):
                 "agents": [{
                     "id": a["id"], "name": a["name"], "status": a["status"],
                     "tunnel_ip": a["tunnel_ip"], "roles": a["roles"],
+                    "ssh_port": a.get("ssh_port"),
                     "cpu": a.get("live", {}).get("cpu", []),
                     "mem": a.get("live", {}).get("mem", []),
                     "last_seen": a["last_seen"],

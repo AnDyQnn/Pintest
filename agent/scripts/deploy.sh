@@ -16,6 +16,7 @@ AWGCONF="${2:?нет пути к awg-конфигу}"
 NAME="${3:-agent}"
 HOSTIP="${4:-10.9.0.1}"
 SSHPASS="${5:-pintest}"
+SSH_PORT="${6:-22}"                 # порт sshd ноды — для fail2ban/ufw (тот же, чем хост зашёл)
 export DEBIAN_FRONTEND=noninteractive
 export PATH="/usr/bin:/usr/sbin:/bin:/sbin:${PATH:-}"
 
@@ -36,6 +37,34 @@ https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_C
     > /etc/apt/sources.list.d/docker.list
   apt-get update -y
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+fi
+
+# ── Хардненинг агент-СЕРВЕРА: та же обвязка, что на хосте (ufw + fail2ban), под ─────
+# ПОРТ SSH ноды, от РОДНОГО root (нового юзера не создаём). Туннель агент-инициируемый
+# (исходящий на host:51820) → default-deny-incoming его не рвёт; agent_api живёт на awg0
+# ВНУТРИ контейнера и на WAN не торчит. Отключить: AGENT_HARDEN=0.
+if [ "${AGENT_HARDEN:-1}" = "1" ]; then
+  echo "[deploy] хардненинг ноды: ufw + fail2ban (SSH-порт ${SSH_PORT})"
+  apt-get install -y ufw fail2ban || echo "[deploy][WARN] ufw/fail2ban не поставились"
+  ufw allow "${SSH_PORT}/tcp" || true      # SSH (provisioning с хоста)
+  ufw default deny incoming || true
+  ufw default allow outgoing || true       # исходящий туннель на host:51820 остаётся
+  ufw --force enable || true
+  # fail2ban: journald (sshd не пишет в /var/log/auth.log на совр. Ubuntu) + ignoreip приватных
+  cat > /etc/fail2ban/jail.local <<'F2B'
+[DEFAULT]
+bantime  = 1h
+findtime = 10m
+maxretry = 5
+banaction = iptables-allports
+ignoreip = 127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 169.254.0.0/16 ::1/128 fc00::/7 fe80::/10
+
+[sshd]
+enabled = true
+backend = systemd
+F2B
+  systemctl enable fail2ban >/dev/null 2>&1 || true
+  systemctl restart fail2ban >/dev/null 2>&1 || true
 fi
 
 echo "[deploy] распаковываю исходники (с ХОСТА, не git) -> $ROOT"

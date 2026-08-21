@@ -405,7 +405,8 @@
       const g = el("g", {}, root);
       el("text", { x: p.x, y: p.y + 41, "text-anchor": "middle", class: "node-label" }, g).textContent = a.name;
       el("text", { x: p.x, y: p.y + 55, "text-anchor": "middle", class: "node-sub" }, g).textContent =
-        (a.tunnel_ip || "") + " · " + (a._active ? "скан…" : (AG_STATUS_RU[a.status] || a.status));
+        (a.tunnel_ip || "") + (a.ssh_port ? " · SSH:" + a.ssh_port : "") + " · " +
+        (a._active ? "скан…" : (AG_STATUS_RU[a.status] || a.status));
       placed.push({ x: p.x, y: p.y + 41 });
     });
     // цели — сканируемые (стадии) вперёд, дальше по приоритету статуса; с разведением подписей

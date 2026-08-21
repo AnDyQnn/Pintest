@@ -150,7 +150,8 @@ def deploy(t: SSHTarget, tarball: bytes, awg_conf: str, agent_name: str,
         sftp.close()
         log.append(f"доставлены: исходники ({len(tarball)} байт), awg-конфиг, deploy.sh")
         cmd = (f"bash {REMOTE_DEPLOY_SH} {REMOTE_DEPLOY_TGZ} {REMOTE_DEPLOY_AWG} "
-               f"{shlex.quote(agent_name)} {shlex.quote(host_tunnel_ip)} {shlex.quote(agent_ssh_pass)}")
+               f"{shlex.quote(agent_name)} {shlex.quote(host_tunnel_ip)} {shlex.quote(agent_ssh_pass)} "
+               f"{int(t.port)}")   # SSH-порт ноды — для fail2ban/ufw хардненинга в deploy.sh
         rc, out = _exec(cli, cmd, timeout=1200)   # apt+docker build могут быть долгими
         log.extend(out.strip().splitlines())
         log.append(f"deploy.sh завершён с кодом {rc}")
