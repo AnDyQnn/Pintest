@@ -37,7 +37,7 @@ DEADMAN_BOOT_GRACE = int(os.environ.get("DEADMAN_BOOT_GRACE", "8"))
 ARMED_FLAG = AGENT_DIR / ".armed"       # взведён ли dead-man (ставится после provision)
 TOMBSTONE = PINTEST_ROOT / "DESTROYED"  # маркер после самоуничтожения
 
-VERSION = os.environ.get("PINTEST_VERSION", "0.3.0")
+VERSION = os.environ.get("PINTEST_VERSION", "0.4.0")
 AGENT_NAME = os.environ.get("AGENT_NAME", os.environ.get("HOSTNAME", "agent"))
 
 

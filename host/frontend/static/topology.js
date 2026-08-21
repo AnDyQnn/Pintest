@@ -319,6 +319,7 @@
       drawIcon(g, relay ? "relay" : tgtIcon(t, cut, probing, alive), p.x, p.y, c, relay ? 18 : 15);
       if (relay) badge(g, p.x + 14, p.y - 14, "⇄", "#2dd4bf");
       else if (t.rerouted_from) badge(g, p.x + 13, p.y - 13, "↻", "#58a6ff");
+      if (t.hidden) badge(g, p.x - 14, p.y - 14, "H", "#8b5cf6");   // скрытый хост (за pivot'ом)
     });
 
     // узлы агентов
@@ -373,6 +374,7 @@
       const p = P(t.ip); if (!p) return;
       const cut = t.reachable === false && t.status !== "pending";
       const sub = cut ? "недостижима"
+        : t.hidden ? ("скрыт · " + ((t.ports || []).slice(0, 3).join(",") || "?"))
         : t.stage === "probing" ? "пинг…" : t.stage === "alive" ? "скан…" : tgtSub(t);
       if (tryLabel(p.x, p.y + 28, t.ip, sub)) shown++;
     });

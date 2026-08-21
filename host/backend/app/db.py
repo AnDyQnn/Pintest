@@ -73,6 +73,15 @@ CREATE TABLE IF NOT EXISTS captures (
     flag        TEXT,
     data        JSONB DEFAULT '{}'
 );
+CREATE TABLE IF NOT EXISTS pivot_hosts (
+    pivot       TEXT,          -- IP захваченного узла-плацдарма (двудомного)
+    agent_id    TEXT,          -- через какого агента шёл pivot
+    hidden_ip   TEXT,          -- найденный хост в скрытой сети
+    ports       JSONB DEFAULT '[]',
+    subnet      TEXT,
+    ts          DOUBLE PRECISION DEFAULT extract(epoch from now()),
+    PRIMARY KEY (pivot, hidden_ip)
+);
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY, value JSONB
 );

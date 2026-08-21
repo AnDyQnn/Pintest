@@ -330,8 +330,23 @@ function lootCard(i) {
       <span class="muted">${new Date(i.ts * 1000).toLocaleString("ru-RU")}</span></div>
     ${flag}${blocks || '<div class="muted">модуль не вернул содержимого лута</div>'}
     ${i.marker ? `<div class="muted" style="margin-top:.5rem">маркер: <code>${esc(i.marker)}</code></div>` : ""}
+    <div class="btns" style="margin-top:.6rem"><button class="mini" onclick="pivotScan('${esc(i.target)}','${esc(i.cve)}')">🛰 развед-скан сети за узлом (pivot)</button></div>
     ${log}</div>`;
 }
+window.pivotScan = async (host, cve) => {
+  try {
+    const exps = await api("/exploiters");
+    if (!exps.length) { alert("нет ноды с ролью exploiter — назначь во вкладке «Агенты»"); return; }
+    const subnet = prompt("Скрытая подсеть за узлом (префикс /24):", "10.66.0");
+    if (!subnet) return;
+    const r = await api("/pivot/scan", { method: "POST", body: { agent_id: exps[0].id, host, cve, subnet } });
+    if (r.ok) {
+      const list = (r.hosts || []).map((h) => `  ${h.ip}  [${(h.ports || []).join(", ")}]`).join("\n");
+      alert(`Pivot через ${host} — трафик пошёл в скрытую сеть.\nНайдено ${r.hosts.length} хостов:\n${list || "  (пусто)"}\n\nОни появились в графе за реле-узлом.`);
+    } else alert("pivot не удался: " + (r.error || "см. лог"));
+    loadCaptures();
+  } catch (e) { alert("ошибка: " + e.message); }
+};
 
 // ── VPN ─────────────────────────────────────────────────────────────────────
 TAB_LOADERS.vpn = async () => {

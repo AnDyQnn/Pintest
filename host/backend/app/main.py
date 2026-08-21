@@ -320,6 +320,28 @@ def api_captures(_: bool = Depends(require_auth)):
     return exploitation.captures()
 
 
+# ------------------------------ pivot --------------------------------------
+class PivotIn(BaseModel):
+    agent_id: str
+    host: str
+    cve: str
+    subnet: str = "10.66.0"
+
+
+@app.post("/api/pivot/scan")
+async def api_pivot_scan(body: PivotIn, _: bool = Depends(require_auth)):
+    """Развед-скан скрытой сети через захваченный узел (реальный pivot)."""
+    try:
+        return await run_in_threadpool(exploitation.pivot_scan, body.agent_id, body.host, body.cve, body.subnet)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/pivot/hosts")
+def api_pivot_hosts(_: bool = Depends(require_auth)):
+    return exploitation.pivot_hosts()
+
+
 # ------------------------------ лут ----------------------------------------
 @app.get("/api/loot")
 def api_loot(_: bool = Depends(require_auth)):

@@ -55,6 +55,13 @@ class ExploitCaptureIn(BaseModel):
     confirm: bool = False       # человек подтвердил закрепление в UI
 
 
+class PivotIn(BaseModel):
+    target: str
+    cve: str
+    subnet: str
+    ports: List[int] = []
+
+
 class ConsoleOpenIn(BaseModel):
     cols: int = 120
     rows: int = 30
@@ -205,6 +212,13 @@ def update(body: UpdateIn):
         raise HTTPException(400, f"не удалось применить обновление: {e}")
     updater.restart_soon()
     return res
+
+
+# ---- pivot: разведка скрытой сети через захваченный узел -------------------
+@app.post("/pivot")
+def pivot(body: PivotIn):
+    """Развед-скан скрытой подсети через плацдарм (реальный pivot). Требует роли exploiter."""
+    return exploit_runner.pivot(body.target, body.cve, body.subnet, body.ports or None)
 
 
 # ---- интерактивная консоль (PTY) ------------------------------------------

@@ -63,6 +63,14 @@ def _candidates() -> Dict[str, Set[str]]:
     return m
 
 
+def _pivot_hosts_map() -> Dict[str, List[Dict]]:
+    """pivot_ip -> [{hidden_ip, ports}] — скрытые хосты, найденные через плацдарм."""
+    out: Dict[str, List[Dict]] = defaultdict(list)
+    for r in db.all_("SELECT pivot, hidden_ip, ports FROM pivot_hosts"):
+        out[r["pivot"]].append({"hidden_ip": r["hidden_ip"], "ports": r["ports"] or []})
+    return out
+
+
 def _cves_by_host() -> Dict[str, List[Dict]]:
     out: Dict[str, List[Dict]] = {}
     for r in db.all_("SELECT DISTINCT host, cve, cvss, severity FROM findings"):
@@ -258,6 +266,29 @@ def build() -> Dict:
     scanning = bool(live)
     for n in nodes:
         n["stage"] = live.get(n["ip"])             # None вне скана
+
+    # скрытые хосты, найденные через pivot — узлами ЗА реле-узлом (агенты их не видят)
+    node_by_ip = {n["ip"]: n for n in nodes}
+    for pivot_ip, hs in _pivot_hosts_map().items():
+        pnode = node_by_ip.get(pivot_ip)
+        for h in hs:
+            if h["hidden_ip"] in node_by_ip:
+                continue
+            reach = bool(pnode and pnode.get("reachable"))
+            ra = (pnode or {}).get("route_agent")
+            nodes.append({
+                "ip": h["hidden_ip"], "agent_id": None, "exploiter_id": None,
+                "status": "discovered", "cve_count": 0, "exploit_count": 0,
+                "top_cve": None, "flag": None, "candidates": [], "hidden": True,
+                "relay": pivot_ip, "route_agent": ra, "reachable": reach,
+                "rerouted_from": None, "is_relay": False, "stage": None,
+                "ports": h.get("ports") or [],
+                "route": ["host", ra, pivot_ip, h["hidden_ip"]] if reach else ["host"],
+            })
+            node_by_ip[h["hidden_ip"]] = nodes[-1]
+            if pnode:
+                pnode["is_relay"] = True           # плацдарм активен как реле
+                relays.add(pivot_ip)
 
     counts: Dict[str, int] = defaultdict(int)
     reach = 0
