@@ -3,6 +3,18 @@
 Формат — по [Keep a Changelog](https://keepachangelog.com/ru/), версии — [SemVer](https://semver.org/lang/ru/).
 Версия продукта задаётся через `PINTEST_VERSION` (дефолт в `config.py`) и видна в вебке/health/отчётах.
 
+## [0.6.0] — 2026-08-21
+
+### Добавлено / Изменено
+- **Все модули эксплуатации — pivot-способны единообразно.** `pivot_scan` вынесен в базу как
+  **generic** (работает через `shell_exec` любого модуля → любой захваченный узел с shell-каналом
+  становится плацдармом). Каждый модуль реализует `shell_exec` (команда через foothold: бэкдор
+  vsftpd / RCE apache / CGI shellshock) и `remote_cmd` (безопасный base64-one-liner эксплойта для
+  запуска на плацдарме). Итог: к устройствам за любым захваченным узлом можно и достучаться, и
+  ударить, и открыть консоль цели.
+- Кнопка «захватить скрытые через pivot» подбирает эксплойт по порту скрытой цели (apache/
+  shellshock на :80, vsftpd на :21). Новый модуль-устройство = просто файл в `exploits/modules/`.
+
 ## [0.5.0] — 2026-08-21
 
 ### Добавлено
@@ -76,6 +88,7 @@
   подтверждения), dead-man switch, тестовая лаба в Docker.
 - Эталонный аудитор `pintest/audit.py` (standalone, только stdlib).
 
+[0.6.0]: https://github.com/AnDyQnn/Pintest/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/AnDyQnn/Pintest/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/AnDyQnn/Pintest/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/AnDyQnn/Pintest/compare/v0.2.0...v0.3.0

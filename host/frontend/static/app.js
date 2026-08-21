@@ -380,22 +380,31 @@ function lootCard(i) {
     </div>
     ${log}</div>`;
 }
+const PIVOT_CVE_BY_PORT = {   // какие эксплойты пробовать по открытому порту скрытой цели
+  80: ["CVE-2021-41773", "CVE-2014-6271"], 8080: ["CVE-2021-41773", "CVE-2014-6271"],
+  21: ["CVE-2011-2523"],
+};
 window.pivotExploit = async (pivotHost, pivotCve) => {
   try {
     const exps = await api("/exploiters");
     if (!exps.length) { alert("нет ноды с ролью exploiter — назначь во вкладке «Агенты»"); return; }
     const all = await api("/pivot/hosts");
-    const hidden = all.filter((h) => h.pivot === pivotHost && (h.ports || []).includes(80));
-    if (!hidden.length) { alert("за этим узлом нет скрытых веб-целей (:80). Сначала сделай «развед-скан (pivot)»."); return; }
-    if (!confirm(`Эксплуатировать ${hidden.length} скрытых веб-целей через плацдарм ${pivotHost}?\nАтака пойдёт ЧЕРЕЗ захваченный узел.`)) return;
+    const targets = all.filter((h) => h.pivot === pivotHost && (h.ports || []).some((p) => PIVOT_CVE_BY_PORT[p]));
+    if (!targets.length) { alert("за этим узлом нет скрытых целей с известным эксплойтом. Сначала «развед-скан (pivot)»."); return; }
+    if (!confirm(`Эксплуатировать ${targets.length} скрытых целей через плацдарм ${pivotHost}?\nАтака пойдёт ЧЕРЕЗ захваченный узел.`)) return;
     let msg = "";
-    for (const h of hidden) {
-      const r = await api("/pivot/exploit", { method: "POST", body: {
-        agent_id: exps[0].id, pivot_host: pivotHost, pivot_cve: pivotCve,
-        hidden_target: h.hidden_ip, hidden_cve: "CVE-2021-41773", port: 80 } });
-      msg += `  ${h.hidden_ip}: ${r.ok && r.success ? ("✓ " + (r.flag || "захвачено")) : ("✗ " + (r.error || "—"))}\n`;
+    for (const h of targets) {
+      const port = (h.ports || []).find((p) => PIVOT_CVE_BY_PORT[p]);
+      let done = false;
+      for (const cve of PIVOT_CVE_BY_PORT[port]) {
+        const r = await api("/pivot/exploit", { method: "POST", body: {
+          agent_id: exps[0].id, pivot_host: pivotHost, pivot_cve: pivotCve,
+          hidden_target: h.hidden_ip, hidden_cve: cve, port } });
+        if (r.ok && r.success) { msg += `  ${h.hidden_ip}: ✓ ${r.flag || "захвачено"} (${cve})\n`; done = true; break; }
+      }
+      if (!done) msg += `  ${h.hidden_ip}: ✗ не взято\n`;
     }
-    alert(`Эксплуатация скрытых целей ЧЕРЕЗ pivot ${pivotHost}:\n${msg}\nЗахваченные стали фиолетовыми в графе.`);
+    alert(`Эксплуатация скрытых целей ЧЕРЕЗ pivot ${pivotHost}:\n${msg}\nВзятые стали фиолетовыми в графе.`);
     loadCaptures();
   } catch (e) { alert("ошибка: " + e.message); }
 };
