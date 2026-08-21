@@ -21,7 +21,7 @@ async function api(path, opts = {}) {
 function initFx() {
   if (!window.GWFX) return;
   GWFX.background(document.getElementById("fx-bg"), "hi");
-  GWFX.favicon();
+  // GWFX.favicon();  // используем статический /favicon.svg (щит + мини-граф сети) — см. index.html
   GWFX.icons(document);
   const shield = document.getElementById("topbar-shield");
   if (shield && GWFX.runShield) GWFX.runShield(shield);

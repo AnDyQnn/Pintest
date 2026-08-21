@@ -152,7 +152,7 @@
       // интеграция + лёгкое притяжение к центру + фиксация host
       nodes.forEach((n) => {
         const p = POS[n.id];
-        if (n.fixed) { p.x = CX; p.y = CY; p.vx = p.vy = 0; return; }
+        if (n.fixed) { p.x = n.fx != null ? n.fx : CX; p.y = n.fy != null ? n.fy : CY; p.vx = p.vy = 0; return; }
         p.vx += (CX - p.x) * CENTER; p.vy += (CY - p.y) * CENTER;
         p.vx *= DAMP; p.vy *= DAMP;
         p.x += Math.max(-40, Math.min(40, p.vx));
@@ -164,17 +164,23 @@
   function buildGraph(data) {
     const agents = data.agents || [];
     const targets = (data.topology && data.topology.targets) || [];
-    const nodes = [{ id: "host", fixed: true }];
-    agents.forEach((a) => nodes.push({ id: a.id, kind: "agent", ref: a }));
+    // HOST и агенты — ЗАКРЕПЛЕНЫ (host в центре, агенты ровно по кольцу) → не слипаются.
+    const N = Math.max(agents.length, 1), RA = 235;
+    const nodes = [{ id: "host", fixed: true, fx: CX, fy: CY }];
+    agents.forEach((a, i) => {
+      const ang = (Math.PI * 2 * i) / N - Math.PI / 2;
+      nodes.push({ id: a.id, kind: "agent", ref: a, fixed: true,
+        fx: CX + RA * Math.cos(ang), fy: CY + RA * Math.sin(ang) });
+    });
     targets.forEach((t) => nodes.push({ id: t.ip, kind: "target", ref: t }));
+    // рёбра-пружины ТОЛЬКО к целям (агенты фиксированы, host→агент рисуется отдельно)
     const edges = [];
-    agents.forEach((a) => edges.push({ a: "host", b: a.id, len: 165 }));
     targets.forEach((t) => {
       const home = t.route_agent || t.agent_id;
-      if (home) edges.push({ a: home, b: t.ip, len: 140 });
-      else edges.push({ a: "host", b: t.ip, len: 120 });   // «в очереди» / без агента
+      if (home) edges.push({ a: home, b: t.ip, len: 128 });
+      else edges.push({ a: "host", b: t.ip, len: 150 });   // «в очереди» / без агента
       if (t.exploiter_id && t.exploiter_id !== home)
-        edges.push({ a: t.exploiter_id, b: t.ip, len: 95 });
+        edges.push({ a: t.exploiter_id, b: t.ip, len: 110 });
     });
     return { agents, targets, nodes, edges };
   }
@@ -227,16 +233,16 @@
     // сигнатура состава → перелейаут только при изменении
     const sig = nodes.map((n) => n.id).sort().join(",") + "|" + edges.length;
 
-    // засев позиций
-    seed("host", CX, CY);
-    agents.forEach((a, i) => {
-      const ang = (Math.PI * 2 * i) / Math.max(agents.length, 1) - Math.PI / 2;
-      seed(a.id, CX + 165 * Math.cos(ang), CY + 165 * Math.sin(ang));
+    // засев позиций: закреплённые (host/агенты) — жёстко на fx/fy; цели — около своего агента
+    nodes.forEach((n) => {
+      if (!n.fixed) return;
+      POS[n.id] = POS[n.id] || { x: n.fx, y: n.fy, vx: 0, vy: 0 };
+      POS[n.id].x = n.fx; POS[n.id].y = n.fy; POS[n.id].vx = POS[n.id].vy = 0;
     });
     targets.forEach((t) => {
       const home = t.route_agent || t.agent_id;
       const hp = (home && POS[home]) || POS.host;
-      seed(t.ip, hp.x + (Math.random() - .5) * 60, hp.y + 40 + (Math.random() - .5) * 60);
+      seed(t.ip, hp.x + (Math.random() - .5) * 80, hp.y + (Math.random() - .5) * 80 + 30);
     });
     // подчистить исчезнувшие узлы
     const alive = {}; nodes.forEach((n) => { alive[n.id] = 1; });
