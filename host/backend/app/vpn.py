@@ -6,41 +6,11 @@
 """
 from __future__ import annotations
 
-import ipaddress
-from typing import Dict, List
+from typing import Dict
 
 import httpx
 
 from . import config
-
-# Приватные сети клиента, которые НЕЛЬЗЯ заворачивать в full-tunnel, иначе у админа
-# отвалится его локалка (LAN/докер/CGNAT). Сеть управления (TUNNEL_NET) сюда НЕ
-# входит — её, наоборот, оставляем в туннеле (там панель).
-_PRIVATE_KEEP_DIRECT = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
-                        "169.254.0.0/16", "100.64.0.0/10"]
-
-
-def full_tunnel_allowed_ips() -> str:
-    """AllowedIPs для «умного» full-tunnel: весь интернет через VPN, но приватные
-    сети клиента — МИМО туннеля (чтобы full-tunnel не рвал его локалку). Сеть
-    управления (TUNNEL_NET) принудительно возвращаем в туннель — там вебка.
-    Порт логики build_split_allowed_ips из каскадного AWG (без РФ-байпаса)."""
-    remaining: List[ipaddress.IPv4Network] = [ipaddress.ip_network("0.0.0.0/0")]
-    for ex in _PRIVATE_KEEP_DIRECT:
-        exn = ipaddress.ip_network(ex)
-        rebuilt: List[ipaddress.IPv4Network] = []
-        for n in remaining:
-            if exn.subnet_of(n):
-                rebuilt.extend(n.address_exclude(exn))   # вырезаем приватный диапазон
-            elif n.subnet_of(exn):
-                continue                                  # n целиком приватный — убираем
-            else:
-                rebuilt.append(n)                         # не пересекается — оставляем
-        remaining = rebuilt
-    cidrs = [str(n) for n in ipaddress.collapse_addresses(remaining)]
-    cidrs.append(config.TUNNEL_NET)   # сеть управления/панель — обратно в туннель
-    cidrs.append("::/0")
-    return ", ".join(cidrs)
 
 
 def _client() -> httpx.Client:

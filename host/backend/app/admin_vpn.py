@@ -35,13 +35,11 @@ def create(name: str) -> Dict:
     keys = vpn.gen_keys()
     ip = _alloc_admin_ip()
     vpn.add_peer(keys["public"], f"{ip}/32")
-    # админ по умолчанию — «умный» FULL-TUNNEL: интернет через VPN, но приватные сети
-    # клиента идут МИМО туннеля (его локалка не рвётся), сеть управления — в туннеле.
+    # админ по умолчанию — FULL-TUNNEL: интернет + вебка через VPN (простой 0.0.0.0/0).
     # split (только сеть управления) — если ADMIN_VPN_FULL_TUNNEL=0.
     if config.ADMIN_VPN_FULL_TUNNEL:
         conf = vpn.build_client_conf(keys["private"], ip,
-                                     allowed_ips=vpn.full_tunnel_allowed_ips(),
-                                     dns=config.ADMIN_VPN_DNS)
+                                     allowed_ips="0.0.0.0/0, ::/0", dns=config.ADMIN_VPN_DNS)
     else:
         conf = vpn.build_client_conf(keys["private"], ip)
     db.q("INSERT INTO admin_configs(name,tunnel_ip,pubkey,conf) VALUES(%s,%s,%s,%s)",
