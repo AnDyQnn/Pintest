@@ -18,6 +18,51 @@
     discovered: "#3fb950", pending: "#6e7681" };
   const PRIO = { captured: 0, exploitable: 1, vulnerable: 2, discovered: 3, pending: 4 };
 
+  // ── векторные иконки (24×24, Feather-подобные) — вместо эмодзи, чёткие и контрастные ──
+  const ICONS = {
+    server: "M4 2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z M4 14h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2z M6 6h.01 M6 18h.01",
+    cpu: "M5 5h14v14H5z M9 1v3 M15 1v3 M9 20v3 M15 20v3 M20 9h3 M20 14h3 M1 9h3 M1 14h3 M9 9h6v6H9z",
+    relay: "M16 3h5v5 M21 3l-7 7 M8 21H3v-5 M3 21l7-7 M21 21l-6-6 M3 3l6 6",
+    flag: "M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z M4 22V15",
+    alert: "M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z M12 9v4 M12 17h.01",
+    crosshair: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M22 12h-4 M6 12H2 M12 6V2 M12 22v-4",
+    check: "M20 6 9 17l-5-5",
+    wifi: "M5 12.6a11 11 0 0 1 14 0 M1.4 9a16 16 0 0 1 21.2 0 M8.5 16.1a6 6 0 0 1 7 0 M12 20h.01",
+    pulse: "M22 12h-4l-3 9L9 3l-3 9H2",
+    cross: "M18 6 6 18 M6 6l12 12",
+    dot: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
+  };
+  function drawIcon(g, name, x, y, color, size) {
+    const p = ICONS[name]; if (!p) return;
+    const s = (size || 16) / 24;
+    el("path", { d: p, fill: "none", stroke: color, "stroke-width": 2.3,
+      "stroke-linecap": "round", "stroke-linejoin": "round",
+      transform: `translate(${x},${y}) scale(${s}) translate(-12,-12)` }, g);
+  }
+  // иконка цели по статусу/стадии
+  function tgtIcon(t, cut, probing, alive) {
+    if (cut) return "cross";
+    if (probing) return "wifi";
+    if (alive) return "pulse";
+    return { captured: "flag", exploitable: "crosshair", vulnerable: "alert",
+      discovered: "check", pending: "dot" }[t.status] || "dot";
+  }
+  // расходящееся кольцо (пинг/захват), вращающееся штрих-кольцо (живой/реле), бейдж-метка
+  function expandRing(g, p, color, dur) {
+    const ring = el("circle", { cx: p.x, cy: p.y, fill: "none", stroke: color, "stroke-width": 2 }, g);
+    el("animate", { attributeName: "r", values: "12;26", dur, repeatCount: "indefinite" }, ring);
+    el("animate", { attributeName: "opacity", values: ".85;0", dur, repeatCount: "indefinite" }, ring);
+  }
+  function rotRing(g, p, r, color, dur) {
+    el("circle", { cx: p.x, cy: p.y, r, fill: "none", stroke: color, "stroke-width": 1.5, "stroke-dasharray": "4 5" }, g)
+      .appendChild(el("animateTransform", { attributeName: "transform", type: "rotate",
+        from: `0 ${p.x} ${p.y}`, to: `360 ${p.x} ${p.y}`, dur, repeatCount: "indefinite" }));
+  }
+  function badge(g, x, y, text, color) {
+    el("circle", { cx: x, cy: y, r: 7.5, fill: "#161b22", stroke: color, "stroke-width": 1.5 }, g);
+    el("text", { x, y: y + 3.5, "text-anchor": "middle", "font-size": "10", fill: color }, g).textContent = text;
+  }
+
   // ── персистентное состояние ──
   const POS = {};                            // id -> {x,y,vx,vy}
   const VIEW = { k: 1, tx: 0, ty: 0 };       // масштаб/сдвиг холста
@@ -224,43 +269,50 @@
       }
     });
 
-    // связи агент→цель (+ exploiter) + пакеты
+    // связи к цели: обычно от агента, но реле-цель — ОТ захваченного узла-реле (self-heal)
     targets.forEach((t) => {
       const tp = P(t.ip); if (!tp) return;
-      const home = t.route_agent || t.agent_id;
-      const hp = (home && P(home)) || P("host");
       const cut = t.reachable === false && t.status !== "pending";
-      const scanning = home && agents.find((a) => a.id === home && a._active);
+      const relayed = t.relay && P(t.relay);
+      const home = relayed ? t.relay : (t.route_agent || t.agent_id);
+      const hp = (home && P(home)) || P("host");
+      const scanning = !relayed && home && agents.find((a) => a.id === home && a._active);
       const c = cut ? "#f85149" : (TGT_COL[t.status] || "#8b949e");
       const d = pathD(hp.x, hp.y, tp.x, tp.y, 0.06);
-      const cls = "tlink" + (t.status === "pending" || !home ? " pending" : "")
-        + (t.rerouted_from ? " reroute" : "") + (scanning ? " scanning" : "");
-      el("path", { class: cls, d, stroke: t.rerouted_from ? "#58a6ff" : c }, root);
-      if (scanning) packet(root, d, 1.1, "scan", 2.6, 0);
-      if (t.exploiter_id && t.exploiter_id !== home) {
+      let cls = "tlink";
+      if (relayed) cls += " relay";
+      else if (t.rerouted_from) cls += " reroute";
+      else if (t.status === "pending" || !home) cls += " pending";
+      if (scanning) cls += " scanning";
+      el("path", { class: cls, d, stroke: relayed ? "#2dd4bf" : (t.rerouted_from ? "#58a6ff" : c) }, root);
+      if (relayed) packet(root, d, 1.5, "relay", 2.6, 0);
+      else if (scanning) packet(root, d, 1.1, "scan", 2.6, 0);
+      if (!relayed && t.exploiter_id && t.exploiter_id !== home) {
         const ep = P(t.exploiter_id);
         if (ep) { const dx = pathD(ep.x, ep.y, tp.x, tp.y, 0.12); el("path", { class: "xlink", d: dx }, root); packet(root, dx, 1.8, "cap", 2.4, 0); }
       }
     });
 
-    // узлы целей
+    // узлы целей: SVG-иконка по статусу/стадии + своя анимация на каждое состояние
     targets.forEach((t) => {
       const p = P(t.ip); if (!p) return;
       const cut = t.reachable === false && t.status !== "pending";
-      const c = cut ? "#f85149" : (TGT_COL[t.status] || "#8b949e");
-      const g = el("g", { opacity: cut ? "0.75" : "1" }, root);
-      if (t.status === "captured" && !cut) {
-        const ring = el("circle", { cx: p.x, cy: p.y, fill: "none", stroke: c, "stroke-width": 2 }, g);
-        el("animate", { attributeName: "r", values: "12;26", dur: "1.8s", repeatCount: "indefinite" }, ring);
-        el("animate", { attributeName: "opacity", values: ".8;0", dur: "1.8s", repeatCount: "indefinite" }, ring);
-      }
-      el("circle", { cx: p.x, cy: p.y, r: 12, fill: "rgba(22,27,34,.96)", stroke: c,
-        "stroke-width": 2.2, "stroke-dasharray": cut ? "3 3" : "",
-        filter: t.status === "captured" && !cut ? "drop-shadow(0 0 5px " + c + ")" : "" }, g);
-      el("text", { x: p.x, y: p.y + 4, "text-anchor": "middle", "font-size": "12" }, g).textContent =
-        cut ? "⚠" : (t.status === "captured" ? "🚩" : (t.status === "pending" ? "•" : "◎"));
-      if (t.rerouted_from)
-        el("text", { x: p.x + 14, y: p.y - 9, "text-anchor": "middle", "font-size": "12" }, g).textContent = "↻";
+      const probing = t.stage === "probing", alive = t.stage === "alive", relay = t.is_relay;
+      let c = cut ? "#f85149" : (TGT_COL[t.status] || "#8b949e");
+      if (probing) c = "#58a6ff"; else if (alive) c = "#2dd4bf";     // пинг — синий, живой — бирюзовый
+      const g = el("g", { opacity: cut ? "0.72" : "1" }, root);
+      // анимации — у каждого состояния свой ритм/цвет:
+      if (probing) expandRing(g, p, "#58a6ff", "1s");                          // пинг — быстрая волна
+      else if (t.status === "captured" && !cut) expandRing(g, p, "#a371f7", "2s"); // захват — медленная фиолетовая
+      if (alive) rotRing(g, p, 18, "#2dd4bf", "2.2s");                         // живой — быстрое вращение (скан портов)
+      if (relay) rotRing(g, p, 21, "#2dd4bf", "5s");                          // реле — медленное вращение (плацдарм активен)
+      const rr = relay ? 15 : 12;
+      el("circle", { cx: p.x, cy: p.y, r: rr, fill: "#0d1117", stroke: c,
+        "stroke-width": relay ? 2.8 : 2.2, "stroke-dasharray": cut ? "3 3" : "",
+        filter: (probing || alive || relay || (t.status === "captured" && !cut)) ? "drop-shadow(0 0 6px " + c + ")" : "" }, g);
+      drawIcon(g, relay ? "relay" : tgtIcon(t, cut, probing, alive), p.x, p.y, c, relay ? 18 : 15);
+      if (relay) badge(g, p.x + 14, p.y - 14, "⇄", "#2dd4bf");
+      else if (t.rerouted_from) badge(g, p.x + 13, p.y - 13, "↻", "#58a6ff");
     });
 
     // узлы агентов
@@ -273,18 +325,18 @@
         el("circle", { cx: p.x, cy: p.y, r: 34, fill: "none", stroke: "#58a6ff", "stroke-width": 1, "stroke-dasharray": "4 6" }, g)
           .appendChild(el("animateTransform", { attributeName: "transform", type: "rotate", from: `0 ${p.x} ${p.y}`, to: `360 ${p.x} ${p.y}`, dur: "6s", repeatCount: "indefinite" }));
       }
-      el("circle", { cx: p.x, cy: p.y, r: 25, fill: "rgba(22,27,34,.95)", stroke: c,
-        "stroke-width": 3, filter: a.status === "online" ? "drop-shadow(0 0 6px " + c + ")" : "" }, g);
+      el("circle", { cx: p.x, cy: p.y, r: 25, fill: "#0d1117", stroke: c,
+        "stroke-width": 3, filter: a.status === "online" ? "drop-shadow(0 0 7px " + c + ")" : "" }, g);
+      drawIcon(g, "cpu", p.x, p.y, c, 24);                     // нода-агент — «процессор»
       if ((a.roles || []).includes && (a.roles || []).includes("exploiter"))
-        el("circle", { cx: p.x + 18, cy: p.y - 18, r: 6, fill: "#a371f7", stroke: "#161b22", "stroke-width": 2 }, g);
-      el("text", { x: p.x, y: p.y + 6, "text-anchor": "middle", "font-size": "17" }, g).textContent = "🖥";
+        badge(g, p.x + 19, p.y - 19, "⚔", "#a371f7");          // exploiter — метка
     });
 
-    // host
+    // host — «сервер»
     const hp = P("host"), gh = el("g", {}, root);
     el("circle", { cx: hp.x, cy: hp.y, r: 40, fill: "url(#hostgrad)", stroke: "#58a6ff",
       "stroke-width": 3, filter: "drop-shadow(0 0 12px rgba(88,166,255,.55))" }, gh);
-    el("text", { x: hp.x, y: hp.y + 6, "text-anchor": "middle", class: "node-label", "font-size": "16" }, gh).textContent = "◈ HOST";
+    drawIcon(gh, "server", hp.x, hp.y, "#dbe9ff", 30);
 
     // ── подписи (жадное разведение в экранных координатах) ──
     const placed = [];
@@ -298,7 +350,7 @@
       return true;
     }
     // host + агенты — всегда
-    tryLabel(hp.x, hp.y + 56, "control plane", data.host_ip || "10.9.0.1");
+    tryLabel(hp.x, hp.y + 58, "HOST", "control plane · " + (data.host_ip || "10.9.0.1"));
     agents.forEach((a) => {
       const p = P(a.id); if (!p) return;
       placed.length = placed.length;   // агентские подписи не подавляем целями — форсим
@@ -308,12 +360,15 @@
         (a.tunnel_ip || "") + " · " + (a._active ? "скан…" : (AG_STATUS_RU[a.status] || a.status));
       placed.push({ x: p.x, y: p.y + 41 });
     });
-    // цели — по приоритету, с разведением
+    // цели — сканируемые (стадии) вперёд, дальше по приоритету статуса; с разведением подписей
     let shown = 0;
-    targets.slice().sort((u, v) => (PRIO[u.status] || 5) - (PRIO[v.status] || 5)).forEach((t) => {
+    targets.slice().sort((u, v) => ((u.stage ? -1 : 0) - (v.stage ? -1 : 0))
+      || (PRIO[u.status] || 5) - (PRIO[v.status] || 5)).forEach((t) => {
       const p = P(t.ip); if (!p) return;
       const cut = t.reachable === false && t.status !== "pending";
-      if (tryLabel(p.x, p.y + 28, t.ip, cut ? "недостижима" : tgtSub(t))) shown++;
+      const sub = cut ? "недостижима"
+        : t.stage === "probing" ? "пинг…" : t.stage === "alive" ? "скан…" : tgtSub(t);
+      if (tryLabel(p.x, p.y + 28, t.ip, sub)) shown++;
     });
 
     if (!agents.length)

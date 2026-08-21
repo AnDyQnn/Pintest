@@ -107,12 +107,15 @@ function renderReach(topo, agents) {
   const name = {}; (agents || []).forEach((x) => { name[x.id] = x.name; });
   const reach = topo.reachable || 0, unreach = topo.unreachable || 0, sp = topo.single_points || {};
   if (!reach && !unreach) { box.innerHTML = '<div class="empty">запусти скан — появятся цели</div>'; return; }
+  const relays = topo.relays || [];
   let html = `<div class="reach-line"><span class="dot ok"></span><div class="grow">Достижимо целей (есть живой маршрут)</div><b>${reach}</b></div>`;
   html += `<div class="reach-line"><span class="dot ${unreach ? "bad" : "ok"}"></span><div class="grow">Недостижимо (маршрут отрезан)</div><b>${unreach}</b></div>`;
+  if (relays.length)
+    html += `<div class="reach-line"><span class="dot" style="background:#2dd4bf;box-shadow:0 0 7px #2dd4bf"></span><div class="grow">Плацдармов-реле (держат сеть при падении агентов)</div><b>${relays.length}</b></div>`;
   const keys = Object.keys(sp);
   html += keys.length
     ? keys.map((id) => `<div class="spf">если выпадет <b>${esc(name[id] || id.slice(0, 8))}</b> — теряешь доступ к: ${sp[id].map(esc).join(", ")}</div>`).join("")
-    : '<div class="muted" style="margin-top:.6rem">единых точек отказа нет — у каждой цели есть запасной маршрут (рокировка сработает)</div>';
+    : '<div class="muted" style="margin-top:.6rem">единых точек отказа нет — сеть самовосстановится (рокировка на живого агента или реле через захваченный узел)</div>';
   box.innerHTML = html;
 }
 function renderOverviewJobs(jobs) {

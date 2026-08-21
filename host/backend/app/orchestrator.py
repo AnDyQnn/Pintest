@@ -23,6 +23,15 @@ from . import agents, config, db
 
 JOBS: Dict[str, "JobRunner"] = {}
 
+# живые стадии целей во время скана (ip -> {"stage": probing|alive|scanned, "job": id}).
+# Транзиторно, живёт только пока идёт джоба; топология рисует по нему стадии в реальном времени.
+LIVE_STAGE: Dict[str, Dict] = {}
+
+
+def live_stages() -> Dict[str, str]:
+    """ip -> текущая стадия скана (для топологии). Пусто, когда сканов нет."""
+    return {ip: v["stage"] for ip, v in LIVE_STAGE.items()}
+
 
 def _plabel(opts: Dict) -> str:
     p = opts.get("ports") or {}
@@ -120,6 +129,8 @@ class JobRunner:
         targets = ch["targets"] if isinstance(ch["targets"], list) else []
         base = f"http://{tip}:{config.AGENT_API_PORT}"
         self._set_chunk(cid, "assigned", agent_id)
+        for ip in targets:                       # сразу «в пинге» — цели загораются, как только розданы
+            LIVE_STAGE[ip] = {"stage": "probing", "job": self.job_id}
         try:
             async with httpx.AsyncClient(timeout=15) as cli:
                 await cli.post(base + "/chunk", json={
@@ -141,6 +152,10 @@ class JobRunner:
                                                   [self.acc[k]["ip"] for k in self.acc])
                         self._rebuild_and_persist()
                     self._set_chunk(cid, "assigned", agent_id, st)
+                    alive, scanned = set(st.get("alive") or []), set(st.get("scanned") or [])
+                    for ip in targets:           # живые стадии: scanned > alive > probing
+                        stg = "scanned" if ip in scanned else ("alive" if ip in alive else "probing")
+                        LIVE_STAGE[ip] = {"stage": stg, "job": self.job_id}
                     if st["status"] in ("done", "failed", "cancelled"):
                         break
                     await asyncio.sleep(config.POLL_INTERVAL)
@@ -167,6 +182,8 @@ class JobRunner:
 
     def _finalize(self):
         self._rebuild_and_persist()
+        for ip in [k for k, v in LIVE_STAGE.items() if v.get("job") == self.job_id]:
+            LIVE_STAGE.pop(ip, None)               # скан завершён → топология рисует финальный статус
         done = self._incomplete() == 0 and not self._stop
         db.q("UPDATE jobs SET status=%s, finished_at=%s WHERE id=%s",
              ("done" if done else "cancelled", time.time(), self.job_id))

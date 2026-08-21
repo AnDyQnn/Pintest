@@ -112,6 +112,31 @@ class ChunkRun:
                 pass
 
     # ---- чтение прогресса / результатов -------------------------------------
+    def _live_ips(self):
+        """Поштучные стадии для живого графа: alive (ответили на discovery) и scanned (глубокий скан)."""
+        alive, scanned = [], []
+        try:
+            for f in self.out.glob("alive_*.txt"):
+                alive += [l.strip() for l in f.read_text(encoding="utf-8", errors="ignore").splitlines() if l.strip()]
+        except OSError:
+            pass
+        p = self.out / "results.jsonl"
+        if p.exists():
+            try:
+                for line in p.read_text(encoding="utf-8", errors="ignore").splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        ip = json.loads(line).get("ip")
+                    except ValueError:
+                        ip = None
+                    if ip:
+                        scanned.append(ip)
+            except OSError:
+                pass
+        return alive, scanned
+
     def progress(self) -> Dict:
         st = {}
         sj = self.out / "status.json"
@@ -121,6 +146,7 @@ class ChunkRun:
             except (OSError, ValueError):
                 st = {}
         done, total = st.get("done", 0), st.get("total", len(self.targets))
+        alive, scanned = self._live_ips()
         return {
             "job_id": self.job_id,
             "chunk_id": self.chunk_id,
@@ -132,6 +158,8 @@ class ChunkRun:
             "openh": st.get("openh", 0),
             "cves": st.get("cves", 0),
             "targets": len(self.targets),
+            "alive": alive,          # IP, ответившие на discovery (живые)
+            "scanned": scanned,      # IP с завершённым глубоким сканом
             "error": self.error,
             "elapsed": round((self.finished or time.time()) - self.started, 1) if self.started else 0,
         }

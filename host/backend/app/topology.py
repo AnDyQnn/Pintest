@@ -22,12 +22,18 @@
 """
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from typing import Dict, List, Optional, Set
 
 from exploits import catalog
 
 from . import agents as agents_mod, db, targets as targets_mod
+
+
+def _subnet(ip: str) -> str:
+    m = re.match(r"^(\d+\.\d+\.\d+)\.", ip or "")
+    return m.group(1) if m else (ip or "")
 
 
 # ---------------------------------------------------------------- источники данных
@@ -122,6 +128,85 @@ def single_points(nodes: List[Dict], candidates: Dict[str, Set[str]],
     return dict(crit)
 
 
+# ------------------------------------------------ самовосстановление (mesh)
+def resolve_mesh(nodes: List[Dict], candidates: Dict[str, Set[str]],
+                 online: Set[str], captured: Set[str]) -> Set[str]:
+    """Живучая достижимость: BFS от хоста с реле через ЗАХВАЧЕННЫЕ узлы (fixpoint).
+
+    Цель достижима, если её видит живой агент-кандидат ЛИБО в её подсети есть достижимый
+    захваченный узел — он становится **реле** (ближайший узел → «агент для хоста»). Так при
+    падении агента сеть за ним не теряется, а перестраивается через захваченный плацдарм.
+    Возвращает множество IP, ставших реле. Мутирует узлы (reachable/route_agent/relay/…).
+    """
+    reach: Dict[str, Dict] = {}
+    for n in nodes:                                    # прямой доступ через живого агента
+        ip = n["ip"]
+        live = sorted(c for c in candidates.get(ip, set()) if c in online)
+        if live:
+            reach[ip] = {"agent": live[0], "relay": None}
+    changed = True                                     # fixpoint: реле тянут за собой подсеть
+    while changed:
+        changed = False
+        by_sub: Dict[str, List[str]] = {}
+        for ip in list(reach):
+            if ip in captured:
+                by_sub.setdefault(_subnet(ip), []).append(ip)
+        for n in nodes:
+            ip = n["ip"]
+            if ip in reach:
+                continue
+            rs = by_sub.get(_subnet(ip))
+            if rs:
+                r = rs[0]
+                reach[ip] = {"agent": reach[r]["agent"], "relay": r}
+                changed = True
+    relay_ips: Set[str] = set()
+    for n in nodes:
+        ip = n["ip"]
+        info = reach.get(ip)
+        assigned = n.get("agent_id")
+        n["candidates"] = sorted(candidates.get(ip, set()))
+        if info:
+            n["reachable"] = True
+            n["route_agent"] = info["agent"]
+            n["relay"] = info["relay"]
+            n["rerouted_from"] = assigned if (assigned and assigned not in online
+                                              and (info["relay"] or assigned != info["agent"])) else None
+            n["route"] = ["host", info["agent"]] + ([info["relay"], ip] if info["relay"] else [ip])
+            if info["relay"]:
+                relay_ips.add(info["relay"])
+        else:
+            n["reachable"] = False
+            n["route_agent"] = None
+            n["relay"] = None
+            n["rerouted_from"] = None
+            n["route"] = ["host"]
+    for n in nodes:
+        n["is_relay"] = n["ip"] in relay_ips
+    return relay_ips
+
+
+def single_points_mesh(nodes: List[Dict], candidates: Dict[str, Set[str]],
+                       online: Set[str], captured: Set[str]) -> Dict[str, List[str]]:
+    """Агент → цели, которые станут недостижимыми при его выпадении ДАЖЕ с учётом реле.
+
+    Считаем базовую достижимость, затем для каждого агента — достижимость без него; разница =
+    цели, которые он держит эксклюзивно (даже захваченные плацдармы не спасают). С mesh таких
+    точек отказа заметно меньше — в этом и суть живучести.
+    """
+    base = [dict(n) for n in nodes]
+    resolve_mesh(base, candidates, online, captured)
+    base_reach = {n["ip"] for n in base if n["reachable"]}
+    crit: Dict[str, List[str]] = {}
+    for a in online:
+        red = [dict(n) for n in nodes]
+        resolve_mesh(red, candidates, online - {a}, captured)
+        lost = base_reach - {n["ip"] for n in red if n["reachable"]}
+        if lost:
+            crit[a] = sorted(lost)
+    return crit
+
+
 # ---------------------------------------------------------------- сборка
 def _target_nodes() -> List[Dict]:
     tmap = _target_agent_map()
@@ -160,11 +245,19 @@ def _target_nodes() -> List[Dict]:
 
 
 def build() -> Dict:
-    """Целевой слой + маршруты/достижимость (для live-потока и /api/topology)."""
+    """Целевой слой + маршруты/достижимость + живые стадии скана (для live-потока и /api/topology)."""
     nodes = _target_nodes()
     cand = _candidates()
     online = {a["id"] for a in agents_mod.list_agents() if a["status"] == "online"}
-    resolve_routes(nodes, cand, online)
+    captured = {n["ip"] for n in nodes if n["status"] == "captured"}   # плацдармы = потенциальные реле
+    relays = resolve_mesh(nodes, cand, online, captured)               # живучая достижимость (self-heal)
+
+    # живые стадии скана (probing/alive/scanned) — граф строится в реальном времени
+    from . import orchestrator                     # лениво: избегаем циклического импорта
+    live = orchestrator.live_stages()
+    scanning = bool(live)
+    for n in nodes:
+        n["stage"] = live.get(n["ip"])             # None вне скана
 
     counts: Dict[str, int] = defaultdict(int)
     reach = 0
@@ -178,7 +271,9 @@ def build() -> Dict:
         "reachable": reach,
         "unreachable": len(nodes) - reach,
         "rerouted": sum(1 for n in nodes if n["rerouted_from"]),
-        "single_points": single_points(nodes, cand, online),
+        "relays": sorted(relays),
+        "single_points": single_points_mesh(nodes, cand, online, captured),
+        "scanning": scanning,
     }
 
 
