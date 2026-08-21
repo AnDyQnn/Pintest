@@ -39,6 +39,8 @@ bash lab/build.sh                      # соберёт всё и подниме
 
 Открой **https://localhost:8443** → прими самоподписанный сертификат → логин **admin / admin**.
 
+> 🧭 **Прогон с нуля по шагам (WSL)** — [docs/quickstart-wsl.md](docs/quickstart-wsl.md): от `docker` до захвата флага и графа, с проверками на каждом шаге.
+
 Дальше — по шагам из [lab/README.md](lab/README.md): подключить агентов, загрузить цели,
 запустить скан, посмотреть отчёт, показать failover / self-destruct / DIFF / эксплуатацию.
 
