@@ -46,7 +46,9 @@ if [ ! -f "$HERE/config.env" ]; then
   echo "[install] создан host/config.env — адрес хоста (AWG_ENDPOINT) определится САМ;"
   echo "[install]   пропиши его вручную, только если авто-детект ошибётся (сложный NAT)"
 fi
-SSH_PORT="$(grep -E '^[[:space:]]*SSH_PORT=' "$HERE/config.env" 2>/dev/null | tail -1 | cut -d= -f2 | tr -d '[:space:]')"
+# ВАЖНО: под set -euo pipefail пустой grep (нет строки SSH_PORT в старом config.env)
+# уронил бы весь скрипт на присваивании — поэтому глушим `|| true`.
+SSH_PORT="$( { grep -E '^[[:space:]]*SSH_PORT=' "$HERE/config.env" 2>/dev/null || true; } | tail -1 | cut -d= -f2 | tr -d '[:space:]')"
 SSH_PORT="${SSH_PORT:-22}"
 
 # 3) Хардненинг основного сервера (закрыть от внешнего)
