@@ -37,7 +37,8 @@ harden_ufw(){
   ufw --force reset
   ufw default deny incoming
   ufw default allow outgoing
-  ufw allow "${SSH_PORT}/tcp"     # SSH (порт из config.env / выбран при установке)
+  ufw allow "${CUR_PORT}/tcp"                                    # ТЕКУЩИЙ SSH — НИКОГДА не закрываем (анти-лок-аут)
+  [ "$SSH_PORT" != "$CUR_PORT" ] && ufw allow "${SSH_PORT}/tcp"  # доп. выбранный порт
   ufw allow 51820/udp             # вход туннеля AmneziaWG
   ufw allow 80/tcp                # http → редирект на https
   ufw allow 443/tcp               # вебка HTTPS (в идеале — только из VPN-подсети)
@@ -45,8 +46,8 @@ harden_ufw(){
 }
 
 harden_fail2ban(){
+  # jail.local с backend=systemd (journald) — порт в jail не нужен (бан iptables-allports).
   cp "$HERE/fail2ban/jail.local" /etc/fail2ban/jail.local
-  printf 'port = %s\n' "$SSH_PORT" >> /etc/fail2ban/jail.local   # порт в jail (журнал journald)
   systemctl enable fail2ban
   systemctl restart fail2ban
 }
@@ -74,28 +75,41 @@ step_soft "автозапуск Docker при ребуте" systemctl enable --n
 title "конфигурация"
 merge_config "$HERE/config.example.env" "$CFG"
 
-# 3) SSH-порт для хардненинга — задаётся при установке (дефолт из живого подключения)
-DEF_PORT="$(get_config SSH_PORT "$CFG")"; [ -z "$DEF_PORT" ] && DEF_PORT="$(detect_ssh_port)"
+# 3) SSH-порт для хардненинга — задаётся при установке.
+#    АНТИ-ЛОК-АУТ: CUR_PORT (порт, на котором ты подключён СЕЙЧАС) ufw открывает ВСЕГДА.
+#    sshd автоматически НЕ переносим (риск лок-аута, особенно socket-activated Ubuntu).
+CUR_PORT="$(detect_ssh_port)"
+DEF_PORT="$(get_config SSH_PORT "$CFG")"; [ -z "$DEF_PORT" ] && DEF_PORT="$CUR_PORT"
 if [ -n "${SSH_PORT:-}" ]; then
   :                                             # из окружения
 elif [ -t 0 ] && [ "${PINTEST_NONINTERACTIVE:-0}" != "1" ]; then
-  printf '  %sSSH-порт для ufw/fail2ban%s [%s%s%s]: ' "$C_C" "$C_N" "$C_B" "$DEF_PORT" "$C_N"
+  info "sshd сейчас слушает порт ${C_B}${CUR_PORT}${C_N} — его в ufw НЕ закрою (анти-лок-аут)"
+  printf '  %sпорт SSH для ufw/fail2ban%s [%s%s%s]: ' "$C_C" "$C_N" "$C_B" "$DEF_PORT" "$C_N"
   read -r _ans || _ans=""
   SSH_PORT="${_ans:-$DEF_PORT}"
 else
   SSH_PORT="$DEF_PORT"
 fi
 set_config SSH_PORT "$SSH_PORT" "$CFG"
-ok "SSH-порт хардненинга: ${C_B}${SSH_PORT}${C_N} (записан в config.env)"
+if [ "$SSH_PORT" != "$CUR_PORT" ]; then
+  warn "выбран порт ${SSH_PORT}, но sshd сейчас на ${CUR_PORT} — sshd НЕ трогаю (иначе лок-аут)"
+  note "в ufw открою ОБА: ${CUR_PORT} (текущий) и ${SSH_PORT} (выбранный)"
+  note "чтобы реально перенести SSH: смени порт в sshd вручную, переподключись по ${SSH_PORT},"
+  note "затем закрой старый:  sudo ufw delete allow ${CUR_PORT}/tcp"
+else
+  ok "SSH-порт хардненинга: ${C_B}${SSH_PORT}${C_N} (совпадает с текущим sshd, записан в config.env)"
+fi
 
 # 4) Хардненинг
 if [ "${PINTEST_HARDEN:-1}" = "1" ]; then
   title "хардненинг сервера"
-  step_soft "ставлю ufw + fail2ban" apt-get install -y ufw fail2ban
+  step_soft "ставлю ufw + fail2ban" apt-get install -y ufw fail2ban python3-systemd
   step_soft "ufw: правила (SSH ${SSH_PORT}, 80/443, 51820/udp)" harden_ufw
   step_soft "fail2ban: jail sshd (journald + ignoreip)" harden_fail2ban
-  if fail2ban-client status sshd >/dev/null 2>&1; then ok "fail2ban jail sshd активен"
-  else warn "fail2ban jail sshd не активен — проверь: fail2ban-client status sshd"; fi
+  f2b_ok=0
+  for _ in 1 2 3; do fail2ban-client status sshd >/dev/null 2>&1 && { f2b_ok=1; break; }; sleep 1; done
+  [ "$f2b_ok" = 1 ] && ok "fail2ban jail sshd активен" \
+    || warn "fail2ban jail sshd не активен — проверь: fail2ban-client status sshd (нужен python3-systemd)"
 fi
 
 # 5) Стек
