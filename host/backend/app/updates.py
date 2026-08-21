@@ -8,25 +8,36 @@ from __future__ import annotations
 
 import base64
 import io
-import subprocess
 import tarfile
 import time
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
 import httpx
 
 from . import agents, config, provisioner
 
 # --------------------------- обновление ХОСТА ------------------------------
+# ВАЖНО: бэкенд крутится В КОНТЕЙНЕРЕ и НЕ может пересобрать/перезапустить сам
+# себя (ни репы /opt/pintest внутри нет, ни docker внутри). Поэтому «обновить
+# хост» = не git pull здесь, а ЗАЯВКА внешнему демону: пишем маркер в /data
+# (bind-mount ./data -> /data, значит файл ложится в host/data/.update-request),
+# а на самом хосте крутится  sudo bash host/update.sh --watch , который ловит
+# маркер и делает git reset --hard + docker compose up --build с авто-откатом.
+UPDATE_MARKER = config.DATA_DIR / ".update-request"
+
+
 def host_update_git() -> Dict:
-    repo = config.HOST_REPO_DIR
     try:
-        r = subprocess.run(["git", "-C", repo, "pull", "--ff-only"],
-                           capture_output=True, text=True, timeout=120)
-        log = (r.stdout + r.stderr).strip().splitlines()
-        return {"ok": r.returncode == 0, "mechanic": "git", "log": log,
-                "note": "перезапусти стек: docker compose up -d --build"}
+        config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+        UPDATE_MARKER.write_text(str(time.time()), encoding="utf-8")
+        return {"ok": True, "mechanic": "git", "log": [
+            "заявка на обновление хоста поставлена (маркер host/data/.update-request).",
+            "внешний демон  sudo bash host/update.sh --watch  выполнит:",
+            "  git fetch + git reset --hard <remote>/<branch> + docker compose up -d --build",
+            "с авто-откатом на прежний коммит при любой ошибке.",
+            "если демон не запущен — выполни разово:  sudo bash host/update.sh",
+        ], "note": "стек перезапустится внешним демоном (контейнер не рестартит сам себя)"}
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "mechanic": "git", "log": [str(e)]}
 

@@ -492,7 +492,7 @@ TAB_LOADERS.updates = async () => {
   } catch (e) {}
 };
 $("#up-host-git").addEventListener("click", async () => {
-  $("#up-host-log").textContent = "обновление хоста (git pull)…";
+  $("#up-host-log").textContent = "ставлю заявку на обновление хоста…";
   try { const r = await api("/update/host", { method: "POST", body: { method: "git" } }); $("#up-host-log").textContent = (r.log || []).join("\n") + "\n" + (r.note || ""); }
   catch (e) { $("#up-host-log").textContent = "ошибка: " + e.message; }
 });

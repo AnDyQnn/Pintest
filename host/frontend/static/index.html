@@ -215,8 +215,9 @@
 
     <!-- ОБНОВЛЕНИЯ -->
     <section id="tab-updates" class="tab">
-      <div class="card"><h3><span data-ic="upload"></span>Обновление хоста <span class="muted">— git pull</span></h3>
-        <div class="btns"><button id="up-host-git">Обновить хост (git pull)</button></div>
+      <div class="card"><h3><span data-ic="upload"></span>Обновление хоста <span class="muted">— git reset + пересборка (внешний демон)</span></h3>
+        <div class="btns"><button id="up-host-git">Обновить хост</button></div>
+        <div class="muted" style="margin:.4rem 0 .2rem;font-size:.85em">Требует запущенного на хосте демона: <code>sudo bash host/update.sh --watch</code></div>
         <div id="up-host-log" class="log"></div></div>
       <div class="card"><h3><span data-ic="upload"></span>Обновление агентов <span class="muted">— доставка с хоста (API)</span></h3>
         <div id="up-agents"><div class="empty">нод нет</div></div></div>
