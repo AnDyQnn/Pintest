@@ -21,9 +21,11 @@
   // ── персистентное состояние ──
   const POS = {};                            // id -> {x,y,vx,vy}
   const VIEW = { k: 1, tx: 0, ty: 0 };       // масштаб/сдвиг холста
+  const VB_W = 1000, VB_H = 700;             // размер viewBox
   let lastSig = "";                          // сигнатура состава графа
   let lastSvg = null, lastData = null;       // для перерисовки на зум
   let rerenderTimer = null;
+  let userAdjusted = false;                  // трогал ли пользователь вид (тогда не авто-фитим)
 
   function el(name, attrs, parent) {
     const e = document.createElementNS(SVG, name);
@@ -44,6 +46,19 @@
   }
   function applyView(vp) {
     vp.setAttribute("transform", `translate(${VIEW.tx.toFixed(2)},${VIEW.ty.toFixed(2)}) scale(${VIEW.k.toFixed(4)})`);
+  }
+  // авто-подгонка вида под контент (чтобы граф заполнял карту и подписи были читаемы)
+  function fitView(nodes) {
+    let minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
+    nodes.forEach((n) => { const p = POS[n.id]; if (!p) return;
+      minx = Math.min(minx, p.x); miny = Math.min(miny, p.y);
+      maxx = Math.max(maxx, p.x); maxy = Math.max(maxy, p.y); });
+    if (minx > maxx) return;
+    const pad = 78;                                   // запас в мировых ед. под подписи
+    const w = (maxx - minx) + pad * 2, h = (maxy - miny) + pad * 2;
+    VIEW.k = Math.min(VB_W / w, VB_H / h, 2.6);        // маленький граф не раздуваем сверх 2.6×
+    VIEW.tx = VB_W / 2 - VIEW.k * (minx + maxx) / 2;
+    VIEW.ty = VB_H / 2 - VIEW.k * (miny + maxy) / 2;
   }
 
   function tgtSub(t) {
@@ -140,6 +155,7 @@
       const wx = (p.x - VIEW.tx) / VIEW.k, wy = (p.y - VIEW.ty) / VIEW.k;
       VIEW.k = Math.min(8, Math.max(0.12, VIEW.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
       VIEW.tx = p.x - VIEW.k * wx; VIEW.ty = p.y - VIEW.k * wy;
+      userAdjusted = true;
       const g = vp(); if (g) applyView(g);
       scheduleRerender();
     }, { passive: false });
@@ -149,11 +165,11 @@
     });
     window.addEventListener("mousemove", (e) => {
       if (!drag) return; const p = toSvg(e); if (!p) return;
-      VIEW.tx = p.x - ox; VIEW.ty = p.y - oy; const g = vp(); if (g) applyView(g);
+      VIEW.tx = p.x - ox; VIEW.ty = p.y - oy; userAdjusted = true; const g = vp(); if (g) applyView(g);
     });
     window.addEventListener("mouseup", () => { drag = false; svg.style.cursor = "grab"; });
-    svg.addEventListener("dblclick", (e) => {
-      e.preventDefault(); VIEW.k = 1; VIEW.tx = 0; VIEW.ty = 0; const g = vp(); if (g) applyView(g); scheduleRerender();
+    svg.addEventListener("dblclick", (e) => {   // двойной клик — снова вписать граф в карту
+      e.preventDefault(); userAdjusted = false; scheduleRerender();
     });
   }
 
@@ -181,7 +197,8 @@
     const alive = {}; nodes.forEach((n) => { alive[n.id] = 1; });
     Object.keys(POS).forEach((id) => { if (!alive[id]) delete POS[id]; });
 
-    if (sig !== lastSig) { simulate(nodes, edges, 320); lastSig = sig; }
+    if (sig !== lastSig) { simulate(nodes, edges, 320); lastSig = sig; userAdjusted = false; }
+    if (!userAdjusted) fitView(nodes);          // вписать граф в карту (пока пользователь не трогал вид)
 
     // ── рисуем ──
     svg.innerHTML = "";
@@ -304,10 +321,10 @@
         .textContent = "нет нод — добавь агента во вкладке «Агенты»";
 
     // подсказка + счётчик (фиксированы, вне подвижного слоя)
-    el("text", { x: 14, y: 22, class: "topo-hint" }, svg)
-      .textContent = "колесо — масштаб · тяни — двигать · 2×клик — сброс";
+    el("text", { x: 16, y: 26, class: "topo-hint", "font-size": "15" }, svg)
+      .textContent = "колесо — масштаб · тяни — двигать · 2×клик — вписать в экран";
     if (targets.length)
-      el("text", { x: 14, y: 40, class: "topo-hint" }, svg)
+      el("text", { x: 16, y: 48, class: "topo-hint", "font-size": "15" }, svg)
         .textContent = `узлов: ${agents.length} агентов · ${targets.length} целей · подписей видно ${shown}/${targets.length} (зум покажет больше)`;
   };
 })();
