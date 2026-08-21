@@ -35,6 +35,11 @@ ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin")
 SESSION_SECRET = os.environ.get("SESSION_SECRET", "change-me-in-real-lab")
 
+# Админский VPN: full-tunnel (интернет тоже через VPN) или split (только доступ к панели/сети).
+# По умолчанию FULL — админ по VPN получает и вебку, и интернет (сервер NAT'ит в WAN).
+ADMIN_VPN_FULL_TUNNEL = os.environ.get("ADMIN_VPN_FULL_TUNNEL", "1") == "1"
+ADMIN_VPN_DNS = os.environ.get("ADMIN_VPN_DNS", "1.1.1.1, 1.0.0.1")   # DNS в туннеле для full-tunnel
+
 VERSION = os.environ.get("PINTEST_VERSION", "0.7.0")
 HOST_REPO_DIR = os.environ.get("HOST_REPO_DIR", "/opt/pintest")  # для git-обновления хоста
 

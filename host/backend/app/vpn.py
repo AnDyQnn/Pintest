@@ -46,22 +46,32 @@ def remove_peer(pubkey: str) -> Dict:
         return c.delete(f"/peer/{pubkey}").json()
 
 
-def build_client_conf(agent_priv: str, tunnel_ip: str) -> str:
-    """Собрать клиентский awg0.conf для агента (инвертированный туннель к хосту)."""
+def build_client_conf(agent_priv: str, tunnel_ip: str,
+                      allowed_ips: str = "", dns: str = "") -> str:
+    """Собрать клиентский awg0.conf.
+
+    allowed_ips: что клиент гонит в туннель. По умолчанию TUNNEL_NET (split — только
+      сеть управления; так у АГЕНТОВ, их интернет через хост гнать не надо). Для
+      АДМИН-конфигов передаётся "0.0.0.0/0, ::/0" (full-tunnel: интернет тоже через VPN).
+    dns: строка DNS для [Interface] (нужна при full-tunnel, чтобы резолвился интернет).
+    """
     si = server_info()
     p = si.get("params", {})
     endpoint = config.AWG_ENDPOINT or si.get("endpoint", "")
+    allowed = allowed_ips or config.TUNNEL_NET
     params_lines = "\n".join(f"{k} = {p[k]}" for k in
                              ("Jc", "Jmin", "Jmax", "S1", "S2", "H1", "H2", "H3", "H4") if k in p)
+    dns_line = f"DNS = {dns}\n" if dns else ""
     return (
         "[Interface]\n"
         f"PrivateKey = {agent_priv}\n"
         f"Address = {tunnel_ip}/24\n"
         "MTU = 1280\n"                       # AmneziaWG с джиттером/обфускацией — иначе handshake виснет на части сетей
+        f"{dns_line}"
         f"{params_lines}\n\n"
         "[Peer]\n"
         f"PublicKey = {si['pubkey']}\n"
         f"Endpoint = {endpoint}\n"
-        f"AllowedIPs = {config.TUNNEL_NET}\n"
+        f"AllowedIPs = {allowed}\n"
         "PersistentKeepalive = 25\n"
     )

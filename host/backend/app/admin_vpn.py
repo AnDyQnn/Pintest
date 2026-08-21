@@ -35,7 +35,13 @@ def create(name: str) -> Dict:
     keys = vpn.gen_keys()
     ip = _alloc_admin_ip()
     vpn.add_peer(keys["public"], f"{ip}/32")
-    conf = vpn.build_client_conf(keys["private"], ip)
+    # админ по умолчанию — FULL-TUNNEL: интернет тоже через VPN (сервер NAT'ит в WAN).
+    # split (только сеть управления) — если ADMIN_VPN_FULL_TUNNEL=0.
+    if config.ADMIN_VPN_FULL_TUNNEL:
+        conf = vpn.build_client_conf(keys["private"], ip,
+                                     allowed_ips="0.0.0.0/0, ::/0", dns=config.ADMIN_VPN_DNS)
+    else:
+        conf = vpn.build_client_conf(keys["private"], ip)
     db.q("INSERT INTO admin_configs(name,tunnel_ip,pubkey,conf) VALUES(%s,%s,%s,%s)",
          (name, ip, keys["public"], conf))
     return {"name": name, "tunnel_ip": ip, "conf": conf}

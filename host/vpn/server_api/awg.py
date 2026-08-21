@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Dict, List
@@ -68,11 +69,38 @@ def _write_conf(st: Dict) -> None:
     CONF.write_text("\n".join(lines) + "\n")
 
 
+def _wan_iface() -> str:
+    """WAN-интерфейс контейнера (куда уходит трафик в интернет)."""
+    out = _run(["sh", "-c", "ip route get 1.1.1.1 2>/dev/null"])
+    m = re.search(r"\bdev (\S+)", out)
+    return m.group(1) if m else "eth0"
+
+
+def _ipt_ensure(rule: List[str], table: str = "filter") -> None:
+    """Добавить iptables-правило, если его ещё нет (идемпотентно). rule — без -C/-A."""
+    t = ["-t", table]
+    if subprocess.run(["iptables", *t, "-C", *rule], capture_output=True).returncode != 0:
+        subprocess.run(["iptables", *t, "-A", *rule], capture_output=True)
+
+
+def ensure_forwarding() -> None:
+    """NAT для FULL-TUNNEL клиентов (админ-конфиги с AllowedIPs=0.0.0.0/0): трафик из
+    туннеля выпускаем в интернет через WAN-интерфейс. Агентам (split /24) не мешает —
+    они интернет в туннель не гонят. Идемпотентно, зовётся из up() при каждом старте."""
+    subprocess.run(["sysctl", "-w", "net.ipv4.ip_forward=1"], capture_output=True)
+    wan = _wan_iface()
+    _ipt_ensure(["POSTROUTING", "-s", TUNNEL_NET, "-o", wan, "-j", "MASQUERADE"], table="nat")
+    _ipt_ensure(["FORWARD", "-i", IFACE, "-o", wan, "-j", "ACCEPT"])
+    _ipt_ensure(["FORWARD", "-i", wan, "-o", IFACE, "-m", "state",
+                 "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"])
+
+
 def up() -> None:
     st = _load_state()
     _write_conf(st)
     subprocess.run(["awg-quick", "down", IFACE], capture_output=True)
     subprocess.run(["awg-quick", "up", IFACE], capture_output=True)
+    ensure_forwarding()   # NAT: full-tunnel админ-клиенты получают интернет через хост
 
 
 def add_peer(pubkey: str, allowed_ip: str) -> Dict:
