@@ -13,6 +13,13 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 
+# --fresh (или PINTEST_FRESH=1) — ЧИСТЫЙ СТАРТ: снести host/data (БД, VPN-ключи,
+# отчёты, бэкапы) и подняться с нуля. Нужен, когда хочешь голый сервак: без него
+# install ПЕРЕИСПОЛЬЗУЕТ уже лежащую host/data/pg (БД переживает переустановку —
+# отсюда «старые данные/креды не сменились»).
+FRESH="${PINTEST_FRESH:-0}"
+[ "${1:-}" = "--fresh" ] && FRESH=1
+
 echo "== pintest host install =="
 
 # 1) Docker
@@ -29,6 +36,10 @@ https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CO
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 fi
 
+# docker сам поднимается при РЕБУТЕ ТАЧКИ (иначе стек не встанет после ребута).
+# Вместе с restart:unless-stopped в compose это = весь стек авто-поднимается при загрузке.
+systemctl enable --now docker >/dev/null 2>&1 || true
+
 # 2) Хардненинг основного сервера (закрыть от внешнего)
 if [ "${PINTEST_HARDEN:-1}" = "1" ]; then
   echo "[install] хардненинг: ufw + fail2ban…"
@@ -38,7 +49,8 @@ if [ "${PINTEST_HARDEN:-1}" = "1" ]; then
   ufw default allow outgoing || true
   ufw allow 22/tcp || true          # SSH (лучше сменить порт и ключи-only)
   ufw allow 51820/udp || true       # вход туннеля AmneziaWG
-  ufw allow 8443/tcp || true        # вебка (в идеале — только из VPN-подсети)
+  ufw allow 80/tcp || true          # http → редирект на https (вход по чистому IP)
+  ufw allow 443/tcp || true         # вебка HTTPS (в идеале — только из VPN-подсети)
   ufw --force enable || true
   cp "$HERE/fail2ban/jail.local" /etc/fail2ban/jail.local || true
   systemctl enable --now fail2ban || true
@@ -56,8 +68,29 @@ fi
 # 4) общий образ AmneziaWG + стек
 echo "[install] собираю pintest-awg-base…"
 docker build -t pintest-awg-base:latest "$ROOT/awg-base"
-echo "[install] поднимаю стек хоста…"
 cd "$HERE"
+
+# 4a) чистый старт по запросу: снести host/data и подняться с нуля
+if [ "$FRESH" = "1" ] && [ -d "$HERE/data" ]; then
+  echo "[install] --fresh: останавливаю стек и стираю host/data (БД, VPN-ключи, отчёты)…"
+  docker compose --env-file config.env down -v >/dev/null 2>&1 || docker compose down >/dev/null 2>&1 || true
+  rm -rf "$HERE/data"
+fi
+
+# 4b) гард версии Postgres: образ теперь 17. Если в host/data/pg лежит БД другой
+#     мажорной версии — контейнер НЕ стартанёт на чужом каталоге. Явно объясняем.
+PGV_FILE="$HERE/data/pg/PG_VERSION"
+if [ -f "$PGV_FILE" ]; then
+  cur="$(tr -d '[:space:]' < "$PGV_FILE" 2>/dev/null || echo '?')"
+  if [ "$cur" != "17" ]; then
+    echo "[install][ERR] в host/data/pg лежит БД PostgreSQL $cur, а образ теперь 17 —"
+    echo "               Postgres не запустится на чужой мажорной версии каталога."
+    echo "               Чистый старт (СОТРЁТ host/data):  sudo ./install.sh --fresh"
+    exit 1
+  fi
+fi
+
+echo "[install] поднимаю стек хоста…"
 docker compose --env-file config.env up -d --build
 
 # 5) bootstrap-доступ: ждём backend и вытаскиваем первый админский VPN-конфиг,
@@ -71,9 +104,9 @@ echo "== готово =="
 if [ -f "$BOOT" ]; then
   echo "ПЕРВЫЙ ВХОД (VPN): импортируй в AmneziaWG-клиент конфиг:"
   echo "    $BOOT"
-  echo "  затем открой вебку по туннелю и войди admin/admin (смени в config.env)."
+  echo "  затем открой вебку по туннелю и войди под кредами из config.env (ADMIN_USER/ADMIN_PASSWORD)."
 else
   echo "bootstrap-конфиг ещё не готов (VPN поднимается) — появится в host/data/bootstrap-admin.conf,"
   echo "  либо создай админ-конфиг во вкладке «VPN» после первого входа."
 fi
-echo "Вебка: https://<host>:8443"
+echo "Вебка: https://<host>   (по чистому IP, без порта; http сам редиректит на https)"

@@ -10,7 +10,7 @@ x-logging: &default-logging
 services:
   postgres:
     logging: *default-logging
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     environment:
       POSTGRES_USER: pintest
       POSTGRES_PASSWORD: pintest
@@ -64,7 +64,8 @@ services:
     image: pintest-frontend:latest
     depends_on: [vpn]
     ports:
-      - "8443:443"                              # вебка (HTTPS, самоподпис)
+      - "443:443"                               # вебка (HTTPS) — вход по ЧИСТОМУ IP, без порта
+      - "80:80"                                 # http://<ip> → 301 на https (nginx редиректит)
     volumes:
       - ./data/certs:/etc/nginx/certs
     networks: [pintest]

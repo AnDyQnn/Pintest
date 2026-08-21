@@ -20,7 +20,7 @@ services:
   # ------------------------- control plane (хост) --------------------------
   postgres:
     logging: *default-logging
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     environment: { POSTGRES_USER: pintest, POSTGRES_PASSWORD: pintest, POSTGRES_DB: pintest }
     volumes: [ ./data/pg:/var/lib/postgresql/data ]
     networks: [ mgmt_net ]

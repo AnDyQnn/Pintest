@@ -16,11 +16,13 @@ def _hash(password: str) -> str:
 
 
 def seed_admin() -> None:
-    """Если пользователей нет — создать админа из ENV."""
-    row = db.one("SELECT count(*) c FROM users")
-    if row and row["c"] == 0:
-        db.q("INSERT INTO users(login, pw_hash) VALUES(%s,%s) ON CONFLICT DO NOTHING",
-             (config.ADMIN_USER, _hash(config.ADMIN_PASSWORD)))
+    """config.env — ИСТОЧНИК ИСТИНЫ для админ-аккаунта. На КАЖДОМ старте гарантируем,
+    что логин ADMIN_USER существует с паролем ADMIN_PASSWORD (UPSERT). Значит:
+    поменял креды в config.env + рестарт контейнеров = входишь под новыми кредами.
+    Аккаунты, созданные в вебке (другие логины), не трогаем."""
+    db.q("INSERT INTO users(login, pw_hash) VALUES(%s,%s) "
+         "ON CONFLICT (login) DO UPDATE SET pw_hash = EXCLUDED.pw_hash",
+         (config.ADMIN_USER, _hash(config.ADMIN_PASSWORD)))
 
 
 def verify(login: str, password: str) -> bool:
