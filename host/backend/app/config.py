@@ -35,7 +35,7 @@ ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin")
 SESSION_SECRET = os.environ.get("SESSION_SECRET", "change-me-in-real-lab")
 
-VERSION = os.environ.get("PINTEST_VERSION", "0.4.0")
+VERSION = os.environ.get("PINTEST_VERSION", "0.5.0")
 HOST_REPO_DIR = os.environ.get("HOST_REPO_DIR", "/opt/pintest")  # для git-обновления хоста
 
 

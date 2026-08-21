@@ -82,6 +82,13 @@ CREATE TABLE IF NOT EXISTS pivot_hosts (
     ts          DOUBLE PRECISION DEFAULT extract(epoch from now()),
     PRIMARY KEY (pivot, hidden_ip)
 );
+CREATE TABLE IF NOT EXISTS admin_configs (
+    name        TEXT PRIMARY KEY,      -- имя админского VPN-доступа
+    tunnel_ip   TEXT,                  -- выданный туннельный IP
+    pubkey      TEXT,                  -- публичный ключ (для снятия пира)
+    conf        TEXT,                  -- готовый клиентский awg0.conf (для скачивания)
+    created_at  DOUBLE PRECISION DEFAULT extract(epoch from now())
+);
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY, value JSONB
 );

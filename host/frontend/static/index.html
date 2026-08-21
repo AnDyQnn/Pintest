@@ -191,7 +191,18 @@
 
     <!-- VPN -->
     <section id="tab-vpn" class="tab">
-      <div class="card"><h3><span data-ic="lock"></span>AmneziaWG сервер</h3><div id="vpn-status"></div></div>
+      <div class="grid-2">
+        <div class="card"><h3><span data-ic="lock"></span>Сервер AmneziaWG</h3>
+          <div id="vpn-status"><div class="empty">загрузка…</div></div></div>
+        <div class="card"><h3><span data-ic="user"></span>Админ-доступ (VPN-конфиги)</h3>
+          <div class="muted" style="margin:-.4rem 0 .8rem">админ заходит на вебку по AmneziaWG — создай конфиг и скачай <code>.conf</code> (импортируй в клиент Amnezia)</div>
+          <div class="form-row" style="align-items:flex-end;margin-bottom:.4rem">
+            <label style="flex:1">Имя доступа<input id="avpn-name" placeholder="admin-1"></label>
+            <button id="avpn-create" class="btn-primary">Создать конфиг</button>
+          </div>
+          <div id="avpn-list"><div class="empty">конфигов нет</div></div>
+        </div>
+      </div>
     </section>
 
     <!-- БЭКАПЫ -->

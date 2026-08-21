@@ -268,24 +268,28 @@ def build() -> Dict:
         n["stage"] = live.get(n["ip"])             # None вне скана
 
     # скрытые хосты, найденные через pivot — узлами ЗА реле-узлом (агенты их не видят)
+    hcaps = _captures_by_host()
     node_by_ip = {n["ip"]: n for n in nodes}
     for pivot_ip, hs in _pivot_hosts_map().items():
         pnode = node_by_ip.get(pivot_ip)
         for h in hs:
-            if h["hidden_ip"] in node_by_ip:
+            hid = h["hidden_ip"]
+            if hid in node_by_ip:
                 continue
             reach = bool(pnode and pnode.get("reachable"))
             ra = (pnode or {}).get("route_agent")
+            cap = hcaps.get(hid, {})               # захвачена ли скрытая цель (через pivot)
             nodes.append({
-                "ip": h["hidden_ip"], "agent_id": None, "exploiter_id": None,
-                "status": "discovered", "cve_count": 0, "exploit_count": 0,
-                "top_cve": None, "flag": None, "candidates": [], "hidden": True,
+                "ip": hid, "agent_id": None, "exploiter_id": None,
+                "status": "captured" if cap.get("captured") else "discovered",
+                "cve_count": 0, "exploit_count": 0, "top_cve": None,
+                "flag": cap.get("flag"), "candidates": [], "hidden": True,
                 "relay": pivot_ip, "route_agent": ra, "reachable": reach,
                 "rerouted_from": None, "is_relay": False, "stage": None,
                 "ports": h.get("ports") or [],
-                "route": ["host", ra, pivot_ip, h["hidden_ip"]] if reach else ["host"],
+                "route": ["host", ra, pivot_ip, hid] if reach else ["host"],
             })
-            node_by_ip[h["hidden_ip"]] = nodes[-1]
+            node_by_ip[hid] = nodes[-1]
             if pnode:
                 pnode["is_relay"] = True           # плацдарм активен как реле
                 relays.add(pivot_ip)

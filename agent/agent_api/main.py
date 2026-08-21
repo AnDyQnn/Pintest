@@ -62,6 +62,20 @@ class PivotIn(BaseModel):
     ports: List[int] = []
 
 
+class PivotExploitIn(BaseModel):
+    pivot_host: str
+    pivot_cve: str
+    hidden_target: str
+    hidden_cve: str
+    port: int = 0
+
+
+class ShellExecIn(BaseModel):
+    target: str
+    cve: str
+    cmd: str
+
+
 class ConsoleOpenIn(BaseModel):
     cols: int = 120
     rows: int = 30
@@ -215,6 +229,15 @@ def update(body: UpdateIn):
 
 
 # ---- pivot: разведка скрытой сети через захваченный узел -------------------
+@app.post("/exploit/shell")
+def exploit_shell(body: ShellExecIn):
+    """Команда на захваченной цели через её foothold (консоль цели). Нужна роль exploiter."""
+    from . import roles as _roles
+    if not _roles.has_role("exploiter"):
+        return {"ok": False, "error": "нет роли exploiter", "output": ""}
+    return exploit_runner.shell_exec_target(body.target, body.cve, body.cmd)
+
+
 @app.post("/pivot")
 def pivot(body: PivotIn):
     """Развед-скан скрытой подсети через плацдарм (реальный pivot). Требует роли exploiter."""
@@ -226,6 +249,13 @@ def pivot(body: PivotIn):
 def console_open(body: ConsoleOpenIn):
     """Открыть новую shell-сессию (bash под pty). Вернёт sid."""
     return console.open_session(body.cols, body.rows)
+
+
+@app.post("/pivot/exploit")
+def pivot_exploit(body: PivotExploitIn):
+    """Эксплуатация СКРЫТОЙ цели через захваченный плацдарм (цепочка pivot)."""
+    return exploit_runner.pivot_exploit(body.pivot_host, body.pivot_cve,
+                                        body.hidden_target, body.hidden_cve, body.port)
 
 
 @app.get("/console")

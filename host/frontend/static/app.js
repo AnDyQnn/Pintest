@@ -17,11 +17,55 @@ async function api(path, opts = {}) {
   return data;
 }
 
+// ── анимированный фавикон: радар-развёртка со засветкой узлов сети (в тему сканера) ──
+function animatedFavicon() {
+  let link = document.querySelector("link[rel='icon']");
+  if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
+  const S = 64, cv = document.createElement("canvas"); cv.width = S; cv.height = S;
+  const c = cv.getContext("2d"), cx = S / 2, cy = S / 2, R = 25;
+  const AC = "#a371f7", AB = "#58a6ff";
+  const blips = [
+    { a: -1.2, r: 15, col: AB }, { a: 0.5, r: 22, col: "#3fb950" },
+    { a: 2.2, r: 12, col: AC }, { a: 3.6, r: 20, col: "#f0883e" }, { a: 5.0, r: 17, col: AB },
+  ];
+  const rr = (x, y, w, h, rad) => { c.beginPath(); c.moveTo(x + rad, y);
+    c.arcTo(x + w, y, x + w, y + h, rad); c.arcTo(x + w, y + h, x, y + h, rad);
+    c.arcTo(x, y + h, x, y, rad); c.arcTo(x, y, x + w, y, rad); c.closePath(); };
+  function frame(t) {
+    c.clearRect(0, 0, S, S);
+    rr(1, 1, S - 2, S - 2, 14); c.fillStyle = "#0b0e13"; c.fill();
+    c.lineWidth = 1;
+    for (let i = 1; i <= 3; i++) { c.beginPath(); c.arc(cx, cy, R * i / 3, 0, 7); c.strokeStyle = "rgba(88,166,255,.16)"; c.stroke(); }
+    c.beginPath(); c.moveTo(cx - R, cy); c.lineTo(cx + R, cy); c.moveTo(cx, cy - R); c.lineTo(cx, cy + R); c.strokeStyle = "rgba(88,166,255,.10)"; c.stroke();
+    const ang = t * Math.PI * 2;
+    for (let k = 0; k < 26; k++) {                 // хвост-развёртка
+      const aa = ang - k * 0.06;
+      c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(aa) * R, cy + Math.sin(aa) * R);
+      c.strokeStyle = "rgba(163,113,247," + ((1 - k / 26) * 0.5) + ")"; c.lineWidth = 1.6; c.stroke();
+    }
+    c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(ang) * R, cy + Math.sin(ang) * R); c.strokeStyle = AC; c.lineWidth = 1.7; c.stroke();
+    blips.forEach((b) => {                          // узлы «загораются» по проходу луча
+      let da = (ang - b.a) % (Math.PI * 2); if (da < 0) da += Math.PI * 2;
+      const lit = Math.max(0, 1 - da / 1.3);
+      const bx = cx + Math.cos(b.a) * b.r, by = cy + Math.sin(b.a) * b.r;
+      c.globalAlpha = 0.3 + lit * 0.7; c.fillStyle = b.col;
+      if (lit > 0.25) { c.shadowColor = b.col; c.shadowBlur = 7 * lit; }
+      c.beginPath(); c.arc(bx, by, 1.7 + lit * 1.8, 0, 7); c.fill();
+      c.shadowBlur = 0; c.globalAlpha = 1;
+    });
+    c.beginPath(); c.arc(cx, cy, 2.6, 0, 7); c.fillStyle = AB; c.fill();
+  }
+  const N = 48, DUR = 2600, frames = [];
+  for (let i = 0; i < N; i++) { frame(i / N); frames.push(cv.toDataURL("image/png")); }
+  let start = performance.now(), last = -1;
+  (function tick(ts) { const idx = Math.floor(((ts - start) % DUR) / DUR * N) % N; if (idx !== last) { last = idx; link.href = frames[idx]; } requestAnimationFrame(tick); })(start);
+}
+
 // ── графика (fx.js) ────────────────────────────────────────────────────────
 function initFx() {
+  animatedFavicon();
   if (!window.GWFX) return;
   GWFX.background(document.getElementById("fx-bg"), "hi");
-  // GWFX.favicon();  // используем статический /favicon.svg (щит + мини-граф сети) — см. index.html
   GWFX.icons(document);
   const shield = document.getElementById("topbar-shield");
   if (shield && GWFX.runShield) GWFX.runShield(shield);
@@ -330,9 +374,31 @@ function lootCard(i) {
       <span class="muted">${new Date(i.ts * 1000).toLocaleString("ru-RU")}</span></div>
     ${flag}${blocks || '<div class="muted">модуль не вернул содержимого лута</div>'}
     ${i.marker ? `<div class="muted" style="margin-top:.5rem">маркер: <code>${esc(i.marker)}</code></div>` : ""}
-    <div class="btns" style="margin-top:.6rem"><button class="mini" onclick="pivotScan('${esc(i.target)}','${esc(i.cve)}')">🛰 развед-скан сети за узлом (pivot)</button></div>
+    <div class="btns" style="margin-top:.6rem">
+      <button class="mini" onclick="pivotScan('${esc(i.target)}','${esc(i.cve)}')">🛰 развед-скан сети за узлом (pivot)</button>
+      <button class="mini danger" onclick="pivotExploit('${esc(i.target)}','${esc(i.cve)}')">🎯 захватить скрытые через pivot</button>
+    </div>
     ${log}</div>`;
 }
+window.pivotExploit = async (pivotHost, pivotCve) => {
+  try {
+    const exps = await api("/exploiters");
+    if (!exps.length) { alert("нет ноды с ролью exploiter — назначь во вкладке «Агенты»"); return; }
+    const all = await api("/pivot/hosts");
+    const hidden = all.filter((h) => h.pivot === pivotHost && (h.ports || []).includes(80));
+    if (!hidden.length) { alert("за этим узлом нет скрытых веб-целей (:80). Сначала сделай «развед-скан (pivot)»."); return; }
+    if (!confirm(`Эксплуатировать ${hidden.length} скрытых веб-целей через плацдарм ${pivotHost}?\nАтака пойдёт ЧЕРЕЗ захваченный узел.`)) return;
+    let msg = "";
+    for (const h of hidden) {
+      const r = await api("/pivot/exploit", { method: "POST", body: {
+        agent_id: exps[0].id, pivot_host: pivotHost, pivot_cve: pivotCve,
+        hidden_target: h.hidden_ip, hidden_cve: "CVE-2021-41773", port: 80 } });
+      msg += `  ${h.hidden_ip}: ${r.ok && r.success ? ("✓ " + (r.flag || "захвачено")) : ("✗ " + (r.error || "—"))}\n`;
+    }
+    alert(`Эксплуатация скрытых целей ЧЕРЕЗ pivot ${pivotHost}:\n${msg}\nЗахваченные стали фиолетовыми в графе.`);
+    loadCaptures();
+  } catch (e) { alert("ошибка: " + e.message); }
+};
 window.pivotScan = async (host, cve) => {
   try {
     const exps = await api("/exploiters");
@@ -349,15 +415,45 @@ window.pivotScan = async (host, cve) => {
 };
 
 // ── VPN ─────────────────────────────────────────────────────────────────────
-TAB_LOADERS.vpn = async () => {
+TAB_LOADERS.vpn = loadVpn;
+async function loadVpn() {
   try {
     const v = await api("/vpn");
+    const live = (v.peers || []).filter((p) => p.handshake && p.handshake !== "нет").length;
     $("#vpn-status").innerHTML = `<div class="stat-list">
-      <div class="kv"><span>Интерфейс</span><b>${esc(v.iface || "awg0")} ${v.up ? "↑" : "↓"}</b></div>
-      <div class="kv"><span>Порт</span><b>${v.listen_port || "—"}</b></div>
-      <div class="kv"><span>Пиров</span><b>${v.peer_count || 0}</b></div></div>
-      ${(v.peers || []).map((p) => `<div class="row"><span class="dot ok"></span><div class="grow"><b>${esc(p.peer.slice(0, 24))}…</b><div class="muted">handshake: ${esc(p.handshake || "нет")}</div></div></div>`).join("")}`;
+      <div class="kv"><span>Интерфейс</span><b style="color:${v.up ? "var(--good)" : "var(--bad)"}">${esc(v.iface || "awg0")} ${v.up ? "↑ поднят" : "↓ выкл"}</b></div>
+      <div class="kv"><span>Порт (вход туннеля)</span><b>${v.listen_port || 51820}/udp</b></div>
+      <div class="kv"><span>Адрес хоста в туннеле</span><b>${esc(v.server_ip || "10.9.0.1")}</b></div>
+      <div class="kv"><span>Пиров всего</span><b>${v.peer_count || 0}</b></div>
+      <div class="kv"><span>С активным handshake</span><b style="color:${live ? "var(--good)" : "var(--muted)"}">${live}</b></div>
+    </div>`;
+  } catch (e) { $("#vpn-status").innerHTML = '<div class="empty">VPN недоступен</div>'; }
+  loadAdminVpn();
+}
+async function loadAdminVpn() {
+  try {
+    const list = await api("/vpn/admin");
+    $("#avpn-list").innerHTML = list.length ? list.map((a) =>
+      `<div class="row"><span class="dot ok"></span><div class="grow"><b>${esc(a.name)}</b>
+        <span class="muted">${esc(a.tunnel_ip || "")}</span></div>
+      <button class="mini success" onclick="window.open('/api/vpn/admin/${encodeURIComponent(a.name)}/conf','_blank')">скачать .conf</button>
+      <button class="mini danger" onclick="delAdminVpn('${esc(a.name)}')">удалить</button></div>`).join("")
+      : '<div class="empty">конфигов нет — создай первый</div>';
   } catch (e) {}
+}
+$("#avpn-create").addEventListener("click", async () => {
+  const name = $("#avpn-name").value.trim();
+  try {
+    const r = await api("/vpn/admin", { method: "POST", body: { name } });
+    $("#avpn-name").value = "";
+    window.open(`/api/vpn/admin/${encodeURIComponent(r.name)}/conf`, "_blank");   // сразу скачать
+    loadAdminVpn();
+  } catch (e) { alert("ошибка: " + e.message); }
+});
+window.delAdminVpn = async (name) => {
+  if (!confirm(`Удалить админ-доступ ${name}? (пир снимется, конфиг перестанет работать)`)) return;
+  try { await api(`/vpn/admin/${encodeURIComponent(name)}`, { method: "DELETE" }); } catch (e) { alert(e.message); }
+  loadAdminVpn();
 };
 
 // ── БЭКАПЫ ──────────────────────────────────────────────────────────────────
@@ -416,17 +512,36 @@ TAB_LOADERS.console = loadConsoleNodes;
 async function loadConsoleNodes() {
   try {
     const ags = await api("/agents");
-    const online = ags.filter((a) => a.status === "online");
-    $("#con-node").innerHTML = online.length
-      ? online.map((a) => `<option value="${a.id}">${esc(a.name)} · ${esc(a.tunnel_ip || "")}</option>`).join("")
-      : '<option value="">нет онлайн-нод</option>';
     ags.forEach((a) => { CON._names[a.id] = a.name; });
+    const online = ags.filter((a) => a.status === "online");
+    let html = online.length
+      ? `<optgroup label="Агенты (полный bash)">${online.map((a) => `<option value="agent:${a.id}">🖥 ${esc(a.name)} · ${esc(a.tunnel_ip || "")}</option>`).join("")}</optgroup>`
+      : "";
+    try {
+      const [tgts, exps] = await Promise.all([api("/console/targets"), api("/exploiters")]);
+      if (tgts.length && exps.length) {
+        const ex = exps[0].id;
+        html += `<optgroup label="Захваченные цели (командная консоль через foothold)">${
+          tgts.map((t) => `<option value="target:${t.target}:${t.cve}:${ex}">🎯 ${esc(t.target)} · ${esc(t.cve)}</option>`).join("")}</optgroup>`;
+      }
+    } catch (e) {}
+    $("#con-node").innerHTML = html || '<option value="">нет доступных узлов</option>';
   } catch (e) {}
 }
 $("#con-new").addEventListener("click", openConsole);
 async function openConsole() {
-  const aid = $("#con-node").value;
-  if (!aid) { alert("нет онлайн-ноды — подключи агента"); return; }
+  const val = $("#con-node").value;
+  if (!val) { alert("нет узла — подключи агента или захвати цель"); return; }
+  if (val.startsWith("agent:")) return openAgentConsole(val.slice(6));
+  if (val.startsWith("target:")) { const p = val.split(":"); return openTargetConsole(p[1], p[2], p[3]); }
+}
+function mkTerm(mount) {
+  const term = new Terminal({ fontSize: 13, fontFamily: "ui-monospace,Consolas,monospace",
+    theme: { background: "#000000", foreground: "#c9d1d9" }, cursorBlink: true, scrollback: 5000, convertEol: true });
+  const fit = new FitAddon.FitAddon(); term.loadAddon(fit); term.open(mount);
+  return { term, fit };
+}
+async function openAgentConsole(aid) {
   let sid;
   try { const r = await api(`/console/${aid}`, { method: "POST", body: { cols: 120, rows: 30 } }); sid = r.sid; }
   catch (e) { alert("не удалось открыть консоль: " + e.message); return; }
@@ -435,15 +550,47 @@ async function openConsole() {
   const label = (CON._names[aid] || aid.slice(0, 6)) + " #" + n;
   const holder = $("#con-holder"); const emp = $("#con-empty"); if (emp) emp.style.display = "none";
   const mount = document.createElement("div"); mount.className = "con-term"; holder.appendChild(mount);
-  const term = new Terminal({ fontSize: 13, fontFamily: "ui-monospace,Consolas,monospace",
-    theme: { background: "#000000", foreground: "#c9d1d9" }, cursorBlink: true, scrollback: 5000 });
-  const fit = new FitAddon.FitAddon(); term.loadAddon(fit); term.open(mount);
-  const sess = { aid, sid, key, term, fit, mount, offset: 0, alive: true, label };
+  const { term, fit } = mkTerm(mount);
+  const sess = { aid, sid, key, term, fit, mount, offset: 0, alive: true, label, kind: "agent" };
   CON.sessions[key] = sess;
   term.onData((data) => { api(`/console/${aid}/${sid}/input`, { method: "POST", body: { data } }).catch(() => {}); });
   addConTab(sess); activateConsole(key);
   setTimeout(() => { try { fit.fit(); sendResize(sess); } catch (e) {} }, 40);
   pollConsole(sess);
+}
+function openTargetConsole(target, cve, agentId) {
+  const n = ++CON.seq, key = "t:" + target + ":" + n;
+  const holder = $("#con-holder"); const emp = $("#con-empty"); if (emp) emp.style.display = "none";
+  const mount = document.createElement("div"); mount.className = "con-term"; holder.appendChild(mount);
+  const { term, fit } = mkTerm(mount);
+  const sess = { key, term, fit, mount, target, cve, agentId, cmd: "", alive: true, kind: "target",
+    label: "🎯 " + target + " #" + n };
+  CON.sessions[key] = sess;
+  const prompt = () => term.write(`\r\n\x1b[36m${target}\x1b[0m$ `);
+  term.writeln(`\x1b[2m# командная консоль захваченной цели ${target} (${cve}) — через её foothold\x1b[0m`);
+  term.writeln("\x1b[2m# не PTY: каждая команда — отдельный вызов (cd/окружение не сохраняются)\x1b[0m");
+  prompt();
+  term.onData(async (d) => {
+    if (!sess.alive) return;
+    for (const ch of d) {
+      if (ch === "\r") {
+        const cmd = sess.cmd.trim(); sess.cmd = "";
+        if (!cmd) { prompt(); continue; }
+        term.write("\r\n");
+        try {
+          const r = await api("/console/target/exec", { method: "POST",
+            body: { agent_id: sess.agentId, target: sess.target, cve: sess.cve, cmd } });
+          if (r.ok) term.write((r.output || "").replace(/\n/g, "\r\n"));
+          else term.write("\x1b[31m" + (r.error || "ошибка") + "\x1b[0m");
+        } catch (e) { term.write("\x1b[31m" + e.message + "\x1b[0m"); }
+        prompt();
+      } else if (ch === "\x7f") {
+        if (sess.cmd.length) { sess.cmd = sess.cmd.slice(0, -1); term.write("\b \b"); }
+      } else if (ch >= " ") { sess.cmd += ch; term.write(ch); }
+    }
+  });
+  addConTab(sess); activateConsole(key);
+  setTimeout(() => { try { fit.fit(); term.focus(); } catch (e) {} }, 40);
 }
 function addConTab(sess) {
   const tab = document.createElement("div"); tab.className = "con-tab"; tab.dataset.key = sess.key;
@@ -465,7 +612,7 @@ function activateConsole(key) {
 async function closeConsole(key) {
   const s = CON.sessions[key]; if (!s) return;
   s.alive = false;
-  try { await api(`/console/${s.aid}/${s.sid}`, { method: "DELETE" }); } catch (e) {}
+  if (s.kind === "agent") { try { await api(`/console/${s.aid}/${s.sid}`, { method: "DELETE" }); } catch (e) {} }
   try { s.term.dispose(); } catch (e) {}
   s.mount.remove(); if (s.tab) s.tab.remove(); delete CON.sessions[key];
   const rest = Object.keys(CON.sessions);
@@ -473,7 +620,7 @@ async function closeConsole(key) {
   else { CON.active = null; const emp = $("#con-empty"); if (emp) emp.style.display = ""; }
 }
 function sendResize(s) {
-  if (!s.alive) return;
+  if (!s.alive || s.kind !== "agent") return;
   api(`/console/${s.aid}/${s.sid}/resize`, { method: "POST", body: { cols: s.term.cols, rows: s.term.rows } }).catch(() => {});
 }
 async function pollConsole(s) {

@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-from . import (agents, backup, config, console, db, diff, exploitation, loot,
+from . import (admin_vpn, agents, backup, config, console, db, diff, exploitation, loot,
                orchestrator, reports, targets, topology, updates, users, vpn)
 
 app = FastAPI(title="pintest-host", version=config.VERSION)
@@ -320,6 +320,28 @@ def api_captures(_: bool = Depends(require_auth)):
     return exploitation.captures()
 
 
+@app.get("/api/console/targets")
+def api_console_targets(_: bool = Depends(require_auth)):
+    """Захваченные цели, к которым можно открыть консоль (через их foothold)."""
+    return exploitation.captured_targets()
+
+
+class TargetShellIn(BaseModel):
+    agent_id: str
+    target: str
+    cve: str
+    cmd: str
+
+
+@app.post("/api/console/target/exec")
+async def api_target_shell(body: TargetShellIn, _: bool = Depends(require_auth)):
+    """Команда на захваченной цели через её foothold (командная консоль цели)."""
+    try:
+        return await run_in_threadpool(exploitation.target_shell, body.agent_id, body.target, body.cve, body.cmd)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, str(e))
+
+
 # ------------------------------ pivot --------------------------------------
 class PivotIn(BaseModel):
     agent_id: str
@@ -340,6 +362,26 @@ async def api_pivot_scan(body: PivotIn, _: bool = Depends(require_auth)):
 @app.get("/api/pivot/hosts")
 def api_pivot_hosts(_: bool = Depends(require_auth)):
     return exploitation.pivot_hosts()
+
+
+class PivotExploitIn(BaseModel):
+    agent_id: str
+    pivot_host: str
+    pivot_cve: str
+    hidden_target: str
+    hidden_cve: str
+    port: int = 0
+
+
+@app.post("/api/pivot/exploit")
+async def api_pivot_exploit(body: PivotExploitIn, _: bool = Depends(require_auth)):
+    """Эксплуатация скрытой цели через захваченный плацдарм (цепочка pivot)."""
+    try:
+        return await run_in_threadpool(
+            exploitation.pivot_exploit, body.agent_id, body.pivot_host, body.pivot_cve,
+            body.hidden_target, body.hidden_cve, body.port)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, str(e))
 
 
 # ------------------------------ лут ----------------------------------------
@@ -408,6 +450,40 @@ async def api_console_close(aid: str, sid: str, _: bool = Depends(require_auth))
 
 
 # ------------------------------ VPN ----------------------------------------
+class AdminVpnIn(BaseModel):
+    name: str = ""
+
+
+@app.post("/api/vpn/admin")
+def api_vpn_admin_create(body: AdminVpnIn, _: bool = Depends(require_auth)):
+    """Сгенерировать админский VPN-конфиг (ключи + пир + .conf для скачивания)."""
+    try:
+        return admin_vpn.create(body.name)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/vpn/admin")
+def api_vpn_admin_list(_: bool = Depends(require_auth)):
+    return admin_vpn.list_()
+
+
+@app.get("/api/vpn/admin/{name}/conf")
+def api_vpn_admin_conf(name: str, _: bool = Depends(require_auth)):
+    c = admin_vpn.conf(name)
+    if c is None:
+        raise HTTPException(404, "конфиг не найден")
+    return PlainTextResponse(c, headers={"Content-Disposition": f'attachment; filename="{name}.conf"'})
+
+
+@app.delete("/api/vpn/admin/{name}")
+def api_vpn_admin_delete(name: str, _: bool = Depends(require_auth)):
+    try:
+        return admin_vpn.delete(name)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
 @app.get("/api/vpn")
 def api_vpn(_: bool = Depends(require_auth)):
     return vpn.status()
