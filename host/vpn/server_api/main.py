@@ -29,6 +29,13 @@ def genkeys():
     return awg.genkeys()
 
 
+@app.post("/reload")
+def reload():
+    """Перечитать awg0 из server.json (down/up) — после restore бэкапа."""
+    awg.up()
+    return awg.status()
+
+
 @app.post("/peer")
 def add_peer(body: PeerIn):
     return awg.add_peer(body.pubkey, body.allowed_ip)

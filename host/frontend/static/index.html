@@ -208,8 +208,13 @@
 
     <!-- БЭКАПЫ -->
     <section id="tab-backups" class="tab">
-      <div class="card"><h3><span data-ic="save"></span>Бэкапы состояния хоста</h3>
-        <div class="btns"><button id="bk-create" class="btn-primary">Создать бэкап</button></div>
+      <div class="card"><h3><span data-ic="save"></span>Бэкапы состояния хоста <span class="muted">— БД + ключи VPN + отчёты/серты</span></h3>
+        <div class="btns">
+          <button id="bk-create" class="btn-primary">Создать бэкап</button>
+          <label class="mini" style="cursor:pointer;display:inline-flex;align-items:center;gap:.3rem">Загрузить бэкап<input id="bk-upload" type="file" accept=".gz,.tgz" style="display:none"></label>
+        </div>
+        <div class="muted" style="margin:.4rem 0;font-size:.85em">Снимок состояния (крошечный). Перед обновлением/восстановлением делается автоматически, ежедневно в 03:30. Хранится последних 10.</div>
+        <div id="bk-msg" class="muted" style="margin:.3rem 0"></div>
         <div id="backups-list" style="margin-top:1rem"><div class="empty">бэкапов нет</div></div></div>
     </section>
 

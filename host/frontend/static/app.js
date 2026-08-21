@@ -474,14 +474,32 @@ TAB_LOADERS.backups = loadBackups;
 async function loadBackups() {
   try {
     const list = await api("/backups");
-    $("#backups-list").innerHTML = list.length ? list.map((b) => `<div class="row"><span data-ic="save"></span>
-      <div class="grow"><b>${esc(b.name)}</b> <span class="muted">${(b.size / 1024).toFixed(0)} KB</span></div>
-      <button class="mini" onclick="restoreBackup('${b.name}')">восстановить</button></div>`).join("") : '<div class="empty">бэкапов нет</div>';
+    $("#backups-list").innerHTML = list.length ? list.map((b) => {
+      const kb = (b.size / 1024).toFixed(0);
+      const dt = b.mtime ? new Date(b.mtime * 1000).toLocaleString() : "";
+      const ver = b.version ? " · v" + esc(b.version) : "";
+      const nm = encodeURIComponent(b.name);
+      return `<div class="row"><span data-ic="save"></span>
+      <div class="grow"><b>${esc(b.reason || "manual")}</b> <span class="muted">${dt}${ver} · ${kb} KB</span><br>
+      <span class="muted" style="font-size:.8em">${esc(b.name)}</span></div>
+      <a class="mini" href="/api/backups/${nm}/download">скачать</a>
+      <button class="mini" onclick="restoreBackup('${b.name}')">восстановить</button>
+      <button class="mini" onclick="deleteBackup('${b.name}')">удалить</button></div>`;
+    }).join("") : '<div class="empty">бэкапов нет</div>';
     GWFX && GWFX.icons($("#backups-list"));
   } catch (e) {}
 }
-$("#bk-create").addEventListener("click", async () => { try { await api("/backups", { method: "POST" }); } catch (e) {} loadBackups(); });
-window.restoreBackup = async (n) => { if (confirm("Восстановить из бэкапа?")) { try { const r = await api(`/backups/${n}/restore`, { method: "POST" }); alert("Восстановлено строк: " + r.restored_rows); } catch (e) { alert("ошибка: " + e.message); } } };
+$("#bk-create").addEventListener("click", async () => { $("#bk-msg").textContent = "создаю снимок…"; try { const r = await api("/backups", { method: "POST" }); $("#bk-msg").textContent = "создан: " + r.name; } catch (e) { $("#bk-msg").textContent = "ошибка: " + e.message; } loadBackups(); });
+$("#bk-upload").addEventListener("change", async (ev) => {
+  const f = ev.target.files[0]; if (!f) return;
+  $("#bk-msg").textContent = "загружаю " + f.name + "…";
+  const fd = new FormData(); fd.append("file", f);
+  try { const r = await fetch("/api/backups/upload", { method: "POST", credentials: "same-origin", body: fd }); const d = await r.json(); if (!r.ok) throw new Error(d.detail || r.statusText); $("#bk-msg").textContent = "загружен: " + d.name; }
+  catch (e) { $("#bk-msg").textContent = "ошибка загрузки: " + e.message; }
+  ev.target.value = ""; loadBackups();
+});
+window.restoreBackup = async (n) => { if (confirm("Восстановить из бэкапа?\nТекущее состояние сохранится в pre-restore копию.")) { try { const r = await api(`/backups/${encodeURIComponent(n)}/restore`, { method: "POST" }); alert("Восстановлено строк: " + r.restored_rows + (r.vpn_reloaded ? " · VPN перечитан" : " · VPN НЕ перечитан") + (r.safety ? "\nстраховка: " + r.safety : "")); } catch (e) { alert("ошибка: " + e.message); } loadBackups(); } };
+window.deleteBackup = async (n) => { if (confirm("Удалить бэкап " + n + "?")) { try { await api(`/backups/${encodeURIComponent(n)}`, { method: "DELETE" }); } catch (e) { alert("ошибка: " + e.message); } loadBackups(); } };
 
 // ── ОБНОВЛЕНИЯ ──────────────────────────────────────────────────────────────
 TAB_LOADERS.updates = async () => {

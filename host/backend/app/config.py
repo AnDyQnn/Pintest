@@ -40,6 +40,9 @@ SESSION_SECRET = os.environ.get("SESSION_SECRET", "change-me-in-real-lab")
 ADMIN_VPN_FULL_TUNNEL = os.environ.get("ADMIN_VPN_FULL_TUNNEL", "1") == "1"
 ADMIN_VPN_DNS = os.environ.get("ADMIN_VPN_DNS", "1.1.1.1, 1.0.0.1")   # DNS в туннеле для full-tunnel
 
+# Бэкапы
+BACKUP_KEEP = int(os.environ.get("BACKUP_KEEP", "10"))   # сколько последних снимков держать
+
 VERSION = os.environ.get("PINTEST_VERSION", "0.7.0")
 HOST_REPO_DIR = os.environ.get("HOST_REPO_DIR", "/opt/pintest")  # для git-обновления хоста
 

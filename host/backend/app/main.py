@@ -11,8 +11,8 @@ import hmac
 import time
 from typing import Dict, List, Optional
 
-from fastapi import (Depends, FastAPI, HTTPException, Request, Response,
-                     WebSocket, WebSocketDisconnect)
+from fastapi import (Depends, FastAPI, File, HTTPException, Request, Response,
+                     UploadFile, WebSocket, WebSocketDisconnect)
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
@@ -542,16 +542,44 @@ def api_backups(_: bool = Depends(require_auth)):
 
 
 @app.post("/api/backups")
-def api_backup_create(_: bool = Depends(require_auth)):
-    return backup.create()
+async def api_backup_create(_: bool = Depends(require_auth)):
+    return await run_in_threadpool(backup.create, "manual")
+
+
+@app.get("/api/backups/{name}/download")
+def api_backup_download(name: str, _: bool = Depends(require_auth)):
+    try:
+        p = backup.path_of(name)
+    except (FileNotFoundError, ValueError):
+        raise HTTPException(404, "бэкап не найден")
+    return FileResponse(p, filename=p.name, media_type="application/gzip")
+
+
+@app.post("/api/backups/upload")
+async def api_backup_upload(file: UploadFile = File(...), _: bool = Depends(require_auth)):
+    raw = await file.read()
+    try:
+        return await run_in_threadpool(backup.save_uploaded, raw, file.filename or "")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.delete("/api/backups/{name}")
+async def api_backup_delete(name: str, _: bool = Depends(require_auth)):
+    try:
+        return await run_in_threadpool(backup.delete, name)
+    except (FileNotFoundError, ValueError):
+        raise HTTPException(404, "бэкап не найден")
 
 
 @app.post("/api/backups/{name}/restore")
-def api_backup_restore(name: str, _: bool = Depends(require_auth)):
+async def api_backup_restore(name: str, _: bool = Depends(require_auth)):
     try:
-        return backup.restore(name)
+        return await run_in_threadpool(backup.restore, name)
     except FileNotFoundError:
         raise HTTPException(404, "бэкап не найден")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 # --------------------------- обновление хоста ------------------------------
@@ -614,6 +642,7 @@ async def _startup():
     await run_in_threadpool(users.seed_admin)
     await run_in_threadpool(admin_vpn.ensure_bootstrap)   # первый вход: bootstrap admin VPN
     asyncio.create_task(agents.heartbeat_loop())
+    asyncio.create_task(backup.daily_loop())              # ежедневный авто-снимок состояния
 
 
 @app.get("/api/health")

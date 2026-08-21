@@ -29,9 +29,17 @@ UPDATE_MARKER = config.DATA_DIR / ".update-request"
 
 def host_update_git() -> Dict:
     try:
+        # автобэкап ПЕРЕД обновлением (как в gateway update — есть куда откатиться)
+        pre = ""
+        try:
+            from . import backup
+            pre = backup.create(reason="update")["name"]
+        except Exception:  # noqa: BLE001 — бэкап не должен блокировать обновление
+            pre = ""
         config.DATA_DIR.mkdir(parents=True, exist_ok=True)
         UPDATE_MARKER.write_text(str(time.time()), encoding="utf-8")
         return {"ok": True, "mechanic": "git", "log": [
+            (f"автобэкап перед обновлением: {pre}" if pre else "автобэкап не удался (продолжаю)"),
             "заявка на обновление хоста поставлена (маркер host/data/.update-request).",
             "внешний демон  sudo bash host/update.sh --watch  выполнит:",
             "  git fetch + git reset --hard <remote>/<branch> + docker compose up -d --build",

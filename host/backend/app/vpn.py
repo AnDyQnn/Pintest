@@ -66,6 +66,13 @@ def gen_keys() -> Dict:
         return c.post("/genkeys").json()
 
 
+def reload_server() -> Dict:
+    """Перечитать awg0 из server.json на диске (down/up). Нужно после restore —
+    иначе восстановленные ключи/пиры VPN-сервера не станут активными."""
+    with _client() as c:
+        return c.post("/reload").json()
+
+
 def add_peer(pubkey: str, allowed_ip: str) -> Dict:
     with _client() as c:
         return c.post("/peer", json={"pubkey": pubkey, "allowed_ip": allowed_ip}).json()
