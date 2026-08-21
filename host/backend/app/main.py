@@ -147,6 +147,7 @@ class AgentIn(BaseModel):
     ssh_port: int = 22
     ssh_user: str = "root"
     ssh_password: str
+    full_deploy: bool = False        # True — хост сам развернёт агента на ноде (без git); False — только вброс туннеля
 
 
 @app.get("/api/agents")
@@ -158,7 +159,8 @@ def api_agents(_: bool = Depends(require_auth)):
 async def api_add_agent(body: AgentIn, _: bool = Depends(require_auth)):
     # provisioning блокирующий (paramiko) -> в threadpool
     return await run_in_threadpool(
-        agents.add_agent, body.name, body.ssh_host, body.ssh_port, body.ssh_user, body.ssh_password)
+        agents.add_agent, body.name, body.ssh_host, body.ssh_port, body.ssh_user, body.ssh_password,
+        body.full_deploy)
 
 
 @app.delete("/api/agents/{aid}")

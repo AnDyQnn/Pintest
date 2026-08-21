@@ -20,6 +20,8 @@ RUN pip install --no-cache-dir -r /tmp/req.txt
 COPY core/     /opt/pintest/core/
 COPY exploits/ /opt/pintest/exploits/
 COPY agent/    /opt/pintest/agent/
+# исходники AmneziaWG — чтобы деплоить ноды с хоста без git
+COPY awg-base/  /opt/pintest/awg-base/
 COPY host/backend/ /opt/pintest/host/backend/
 
 WORKDIR /opt/pintest/host/backend

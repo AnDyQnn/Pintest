@@ -37,7 +37,8 @@ def _allocate_ip() -> str:
 
 
 # --------------------------- provisioning ----------------------------------
-def add_agent(name: str, ssh_host: str, ssh_port: int, ssh_user: str, ssh_password: str) -> Dict:
+def add_agent(name: str, ssh_host: str, ssh_port: int, ssh_user: str, ssh_password: str,
+              full_deploy: bool = False) -> Dict:
     """Синхронный полный provisioning (запускать в threadpool из роутера)."""
     aid = uuid.uuid4().hex[:12]
     keys = vpn.gen_keys()                       # {private, public}
@@ -52,7 +53,14 @@ def add_agent(name: str, ssh_host: str, ssh_port: int, ssh_user: str, ssh_passwo
     # пир на СЕРВЕРЕ добавляем ДО поднятия туннеля агентом — иначе handshake не пройдёт
     vpn.add_peer(keys["public"], f"{tip}/32")
     t = provisioner.SSHTarget(ssh_host, ssh_port, ssh_user, ssh_password)
-    ok, log = provisioner.provision(t, conf)
+    if full_deploy:
+        # ПОЛНЫЙ деплой с хоста: копируем исходники (без git), ставим+собираем+поднимаем
+        # контейнер-агента на ноде, вбрасываем туннель, взводим dead-man.
+        tarball = provisioner.build_deploy_tarball()
+        ok, log = provisioner.deploy(t, tarball, conf, name, config.HOST_TUNNEL_IP)
+    else:
+        # только вброс туннеля в УЖЕ стоящий агент (ре-провижн)
+        ok, log = provisioner.provision(t, conf)
     if ok:
         # финальная проверка: доступен ли API агента по туннелю
         reachable = _probe(tip)

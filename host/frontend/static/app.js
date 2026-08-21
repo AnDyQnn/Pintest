@@ -212,11 +212,13 @@ function renderAgentsLive(agents) {
 }
 $("#ag-add").addEventListener("click", async () => {
   const log = $("#ag-provision-log");
-  log.textContent = "провижнинг… (SSH + вброс AWG-ключа, ~10-20с)";
+  const deploy = $("#ag-deploy") ? $("#ag-deploy").checked : false;
+  log.textContent = deploy ? "полный деплой с хоста… (apt + сборка + туннель, до нескольких минут)" : "провижнинг… (SSH + вброс AWG-ключа, ~10-20с)";
   try {
     const r = await api("/agents", { method: "POST", body: {
       name: $("#ag-name").value || $("#ag-host").value, ssh_host: $("#ag-host").value,
-      ssh_port: +$("#ag-port").value, ssh_user: $("#ag-user").value, ssh_password: $("#ag-pass").value } });
+      ssh_port: +$("#ag-port").value, ssh_user: $("#ag-user").value, ssh_password: $("#ag-pass").value,
+      full_deploy: deploy } });
     log.textContent = `[${r.status}] ${r.name} · ${r.tunnel_ip}\n` + (r.log || []).join("\n");
     loadAgents();
   } catch (e) { log.textContent = "ошибка: " + e.message; }
