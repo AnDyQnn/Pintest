@@ -63,12 +63,15 @@ git clone https://github.com/Reider0/Pintest.git
 cd Pintest/host
 sudo ./install.sh
 ```
-Потом открой `host/config.env` и впиши **публичный IP хоста**:
+Публичный IP хоста (`AWG_ENDPOINT`) **определяется сам** — руками прописывать не надо
+(впиши только при сложном NAT/нескольких адресах). Свои креды задаёшь ДО первого старта
+в `host/config.env` (иначе будет дефолт `admin/admin`):
 ```
-AWG_ENDPOINT=<IP_хоста>:51820
+ADMIN_USER=<свой логин>
 ADMIN_PASSWORD=<свой пароль>
+# AWG_ENDPOINT=<IP_хоста>:51820   # только если авто-детект ошибётся
 ```
-и перезапусти: `docker compose --env-file config.env up -d`.
+Поменял креды уже после старта? — перезапусти backend, применятся: `docker compose --env-file config.env up -d`.
 Вебка: `https://<IP_хоста>` (по чистому IP, без порта; http сам редиректит на https).
 
 **Шаг 2 — каждый агент-сервер (их может быть сколько угодно):**
