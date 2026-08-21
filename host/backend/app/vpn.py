@@ -57,6 +57,7 @@ def build_client_conf(agent_priv: str, tunnel_ip: str) -> str:
         "[Interface]\n"
         f"PrivateKey = {agent_priv}\n"
         f"Address = {tunnel_ip}/24\n"
+        "MTU = 1280\n"                       # AmneziaWG с джиттером/обфускацией — иначе handshake виснет на части сетей
         f"{params_lines}\n\n"
         "[Peer]\n"
         f"PublicKey = {si['pubkey']}\n"

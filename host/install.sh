@@ -40,29 +40,35 @@ fi
 # Вместе с restart:unless-stopped в compose это = весь стек авто-поднимается при загрузке.
 systemctl enable --now docker >/dev/null 2>&1 || true
 
-# 2) Хардненинг основного сервера (закрыть от внешнего)
-if [ "${PINTEST_HARDEN:-1}" = "1" ]; then
-  echo "[install] хардненинг: ufw + fail2ban…"
-  apt-get install -y ufw fail2ban || true
-  ufw --force reset || true
-  ufw default deny incoming || true
-  ufw default allow outgoing || true
-  ufw allow 22/tcp || true          # SSH (лучше сменить порт и ключи-only)
-  ufw allow 51820/udp || true       # вход туннеля AmneziaWG
-  ufw allow 80/tcp || true          # http → редирект на https (вход по чистому IP)
-  ufw allow 443/tcp || true         # вебка HTTPS (в идеале — только из VPN-подсети)
-  ufw --force enable || true
-  cp "$HERE/fail2ban/jail.local" /etc/fail2ban/jail.local || true
-  systemctl enable --now fail2ban || true
-  # SSH: выключить парольный вход (только ключи) — раскомментируй при готовых ключах:
-  # sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && systemctl reload ssh
-fi
-
-# 3) конфиг
+# 2) конфиг (создаём ДО хардненинга — из него берём SSH_PORT для ufw)
 if [ ! -f "$HERE/config.env" ]; then
   cp "$HERE/config.example.env" "$HERE/config.env"
   echo "[install] создан host/config.env — адрес хоста (AWG_ENDPOINT) определится САМ;"
   echo "[install]   пропиши его вручную, только если авто-детект ошибётся (сложный NAT)"
+fi
+SSH_PORT="$(grep -E '^[[:space:]]*SSH_PORT=' "$HERE/config.env" 2>/dev/null | tail -1 | cut -d= -f2 | tr -d '[:space:]')"
+SSH_PORT="${SSH_PORT:-22}"
+
+# 3) Хардненинг основного сервера (закрыть от внешнего)
+if [ "${PINTEST_HARDEN:-1}" = "1" ]; then
+  echo "[install] хардненинг: ufw + fail2ban (SSH-порт ${SSH_PORT})…"
+  apt-get install -y ufw fail2ban || echo "[install][WARN] не поставился ufw/fail2ban — проверь apt/сеть"
+  ufw --force reset || true
+  ufw default deny incoming || true
+  ufw default allow outgoing || true
+  ufw allow "${SSH_PORT}/tcp" || true   # SSH (порт из config.env; ключи-only — по желанию ниже)
+  ufw allow 51820/udp || true           # вход туннеля AmneziaWG
+  ufw allow 80/tcp || true              # http → редирект на https (вход по чистому IP)
+  ufw allow 443/tcp || true             # вебка HTTPS (в идеале — только из VPN-подсети)
+  ufw --force enable || true
+  # fail2ban: наш jail (journald + ignoreip приватных сетей) + перезапуск для загрузки
+  cp "$HERE/fail2ban/jail.local" /etc/fail2ban/jail.local || true
+  systemctl enable fail2ban >/dev/null 2>&1 || true
+  systemctl restart fail2ban >/dev/null 2>&1 || true
+  fail2ban-client status sshd >/dev/null 2>&1 && echo "[install] fail2ban: jail sshd активен" \
+    || echo "[install][WARN] fail2ban jail sshd не активен — проверь: fail2ban-client status sshd"
+  # SSH: выключить парольный вход (только ключи) — раскомментируй при готовых ключах:
+  # sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && systemctl reload ssh
 fi
 
 # 4) общий образ AmneziaWG + стек

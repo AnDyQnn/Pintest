@@ -34,6 +34,8 @@ services:
       - ./data/vpn:/etc/amnezia/amneziawg      # ключи/params сервера переживают пересоздание
     ports:
       - "51820:51820/udp"                       # вход туннеля для агентов
+      - "443:443"                               # вебка (HTTPS) — фронт живёт в ЭТОМ netns (см. frontend)
+      - "80:80"                                 # http://<ip> → 301 на https (nginx редиректит)
     networks: [pintest]
     restart: unless-stopped
 
@@ -62,13 +64,14 @@ services:
     logging: *default-logging
     build: { context: .., dockerfile: host/frontend/Dockerfile }
     image: pintest-frontend:latest
-    depends_on: [vpn]
-    ports:
-      - "443:443"                               # вебка (HTTPS) — вход по ЧИСТОМУ IP, без порта
-      - "80:80"                                 # http://<ip> → 301 на https (nginx редиректит)
+    # делит netns с vpn -> nginx слушает на awg0 (10.9.0.1:443) => вебка ДОСТУПНА
+    # ПО ТУННЕЛЮ (админ по VPN открывает https://10.9.0.1). Порты 443/80
+    # опубликованы на сервисе vpn выше. Проксирование идёт на 127.0.0.1:8000 (backend
+    # в этом же netns) — см. nginx.conf.
+    network_mode: "service:vpn"
+    depends_on: [vpn, backend]
     volumes:
       - ./data/certs:/etc/nginx/certs
-    networks: [pintest]
     restart: unless-stopped
 
   # fail2ban НЕ контейнер: настоящая защита ставится на сам хост из host/install.sh

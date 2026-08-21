@@ -1,14 +1,17 @@
 # jail.local — защита основного сервера от перебора по SSH.
-# На реальном сервере fail2ban банит IP после нескольких неудачных входов по SSH,
-# закрывая хост от внешнего перебора (одна из мер «окопаться»).
+# Взято из рабочего каскадного шлюза (AnDyQnn/OpenWRT_AWG): backend=systemd
+# (sshd на современной Ubuntu пишет в journald, а НЕ в /var/log/auth.log — со
+# старым backend=auto jail молча не стартовал). ignoreip покрывает ВСЕ приватные
+# сети: админ приходит из VPN/LAN (приватный IP), поэтому забанить себя нельзя —
+# банятся только реальные атакующие из интернета.
 [DEFAULT]
 bantime  = 1h
 findtime = 10m
 maxretry = 5
-banaction = iptables-multiport
-backend = auto
+# бан по всем портам — забаненный не достучится ни по SSH, ни до панели
+banaction = iptables-allports
+ignoreip = 127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 169.254.0.0/16 ::1/128 fc00::/7 fe80::/10
 
 [sshd]
-enabled  = true
-port     = ssh,2222
-logpath  = %(sshd_log)s
+enabled = true
+backend = systemd
