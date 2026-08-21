@@ -23,7 +23,7 @@
 | [`core/`](core/) | Стековая копия движка аудита + чистка целей + сборка сводного отчёта. |
 | [`exploits/`](exploits/) | Модульный блок CTF-эксплуатации: каталог + модули (`check` + `capture`). |
 | [`agent/`](agent/) | Удалённая нода: приём чанков → скан, роли (scanner/exploiter), dead-man self-destruct. |
-| [`host/`](host/) | Control plane: **backend** (FastAPI) · **frontend** (nginx+вебка) · **postgres** · **vpn** (AmneziaWG-сервер) · **fail2ban**. |
+| [`host/`](host/) | Control plane: **backend** (FastAPI) · **frontend** (nginx+вебка) · **postgres** · **vpn** (AmneziaWG-сервер). fail2ban — хостовый хардненинг из `install.sh`, не контейнер. |
 | [`lab/`](lab/) | **Тестовое место**: полная симуляция в Docker (хост + 3 агента + уязвимые цели) — для демонстрации преподу. |
 | [`awg-base/`](awg-base/) | Общий образ AmneziaWG (userspace amneziawg-go). |
 | [`docs/`](docs/) | Документация: [архитектура](docs/architecture.md) · [инструкция](docs/usage.md). |

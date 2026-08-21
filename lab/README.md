@@ -9,7 +9,7 @@
 
 | Контейнер | Роль | Сеть |
 |-----------|------|------|
-| `postgres` · `vpn` · `backend` · `frontend` · `fail2ban` | хост (control plane) | mgmt_net |
+| `postgres` · `vpn` · `backend` · `frontend` | хост (control plane) | mgmt_net |
 | `agent1` `agent2` `agent3` | удалённые ноды | mgmt_net + targets_net |
 | `target-vsftpd` (172.30.0.11) | vsftpd 2.3.4 — CVE-2011-2523 | targets_net |
 | `target-apache` (172.30.0.12) | Apache 2.4.49 — CVE-2021-41773 | targets_net |

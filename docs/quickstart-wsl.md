@@ -31,7 +31,7 @@ cd pintest
 bash lab/build.sh
 ```
 `build.sh` соберёт базовый образ AmneziaWG (первый раз ~5–8 мин, дальше секунды) и поднимет
-весь стек: хост (backend/frontend/postgres/vpn/fail2ban) + 3 агент-ноды + уязвимые цели.
+весь стек: хост (backend/frontend/postgres/vpn) + 3 агент-ноды + уязвимые цели.
 
 **Проверка:**
 ```bash
