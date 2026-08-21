@@ -3,8 +3,13 @@
 # (fail2ban — НЕ контейнер: ставится на сам хост из install.sh, защищает реальный sshd.)
 # Данные — на диске через bind-volume ./data (не внутри контейнеров).
 # В докер-лабе тот же стек поднимает lab/docker-compose.yml (те же образы/контекст).
+x-logging: &default-logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
 services:
   postgres:
+    logging: *default-logging
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: pintest
@@ -16,6 +21,7 @@ services:
     restart: unless-stopped
 
   vpn:
+    logging: *default-logging
     build: { context: .., dockerfile: host/vpn/Dockerfile }
     image: pintest-vpn:latest
     cap_add: [NET_ADMIN]
@@ -32,6 +38,7 @@ services:
     restart: unless-stopped
 
   backend:
+    logging: *default-logging
     build: { context: .., dockerfile: host/backend/Dockerfile }
     image: pintest-backend:latest
     # делит сетевой стек vpn -> видит awg0 и достаёт агентов по туннелю 10.9.0.X
@@ -52,6 +59,7 @@ services:
     restart: unless-stopped
 
   frontend:
+    logging: *default-logging
     build: { context: .., dockerfile: host/frontend/Dockerfile }
     image: pintest-frontend:latest
     depends_on: [vpn]

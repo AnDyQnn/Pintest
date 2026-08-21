@@ -12,15 +12,21 @@
 #
 #  Перед первым запуском: docker build -t pintest-awg-base ../awg-base  (см. build.sh)
 # ===================================================================
+x-logging: &default-logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
 services:
   # ------------------------- control plane (хост) --------------------------
   postgres:
+    logging: *default-logging
     image: postgres:16-alpine
     environment: { POSTGRES_USER: pintest, POSTGRES_PASSWORD: pintest, POSTGRES_DB: pintest }
     volumes: [ ./data/pg:/var/lib/postgresql/data ]
     networks: [ mgmt_net ]
 
   vpn:
+    logging: *default-logging
     build: { context: .., dockerfile: host/vpn/Dockerfile }
     image: pintest-vpn:latest
     cap_add: [ NET_ADMIN ]
@@ -34,6 +40,7 @@ services:
       mgmt_net: { ipv4_address: 172.31.0.10 }
 
   backend:
+    logging: *default-logging
     build: { context: .., dockerfile: host/backend/Dockerfile }
     image: pintest-backend:latest
     network_mode: "service:vpn"            # делит netns vpn -> видит awg0 и агентов в туннеле
@@ -50,6 +57,7 @@ services:
     volumes: [ ./data:/data ]
 
   frontend:
+    logging: *default-logging
     build: { context: .., dockerfile: host/frontend/Dockerfile }
     image: pintest-frontend:latest
     depends_on: [ vpn ]
@@ -59,6 +67,7 @@ services:
 
   # ------------------------------ агенты -----------------------------------
   agent1:
+    logging: *default-logging
     build: { context: .., dockerfile: agent/Dockerfile }
     image: pintest-agent:latest
     hostname: agent1
@@ -70,6 +79,7 @@ services:
     networks: [ mgmt_net, targets_net ]
 
   agent2:
+    logging: *default-logging
     image: pintest-agent:latest      # образ строит agent1 (избегаем гонки одинакового image)
     depends_on: [ agent1 ]
     hostname: agent2
@@ -81,6 +91,7 @@ services:
     networks: [ mgmt_net, targets_net ]
 
   agent3:
+    logging: *default-logging
     image: pintest-agent:latest      # образ строит agent1 (избегаем гонки одинакового image)
     depends_on: [ agent1 ]
     hostname: agent3
@@ -93,49 +104,61 @@ services:
 
   # ------------------------- уязвимые цели ---------------------------------
   target-vsftpd:                            # ДВУДОМНЫЙ: виден агентам (targets_net) + вход в скрытый сегмент
+    logging: *default-logging
     build: { context: .., dockerfile: lab/targets/vsftpd234/Dockerfile }
     networks:
       targets_net: { ipv4_address: 172.30.0.11 }
       hidden_net:  { ipv4_address: 10.66.0.2 }
   target-apache:
+    logging: *default-logging
     build: { context: .., dockerfile: lab/targets/apache2449/Dockerfile }
     networks: { targets_net: { ipv4_address: 172.30.0.12 } }
   target-shellshock:
+    logging: *default-logging
     build: { context: .., dockerfile: lab/targets/shellshock/Dockerfile }
     networks: { targets_net: { ipv4_address: 172.30.0.13 } }
   target-oldssh:
+    logging: *default-logging
     build: { context: .., dockerfile: lab/targets/oldssh/Dockerfile }
     networks: { targets_net: { ipv4_address: 172.30.0.14 } }
   target-clean:
+    logging: *default-logging
     image: nginx:1.27-alpine                # «пропатченный» хост для контраста
     networks: { targets_net: { ipv4_address: 172.30.0.15 } }
 
   # --- веб-RCE цели: одна мишень (webrce) под разные CVE через SIM_CVE ---
   target-struts:                            # CVE-2017-5638 (OGNL в Content-Type)
+    logging: *default-logging
     build: { context: .., dockerfile: lab/targets/webrce/Dockerfile }
     environment: { SIM_CVE: struts, SIM_BANNER: "Apache-Coyote/1.1" }
     networks: { targets_net: { ipv4_address: 172.30.0.16 } }
   target-drupal:                            # CVE-2018-7600 (Drupalgeddon2)
+    logging: *default-logging
     build: { context: .., dockerfile: lab/targets/webrce/Dockerfile }
     environment: { SIM_CVE: drupal, SIM_BANNER: "Apache/2.4.7 (Ubuntu) Drupal/7.57" }
     networks: { targets_net: { ipv4_address: 172.30.0.17 } }
   target-phpcgi:                            # CVE-2012-1823 (php-cgi query-string)
+    logging: *default-logging
     build: { context: .., dockerfile: lab/targets/webrce/Dockerfile }
     environment: { SIM_CVE: phpcgi, SIM_BANNER: "Apache/2.4.10 PHP/5.4.3" }
     networks: { targets_net: { ipv4_address: 172.30.0.18 } }
   target-tomcat:                            # CVE-2017-12617 (PUT JSP)
+    logging: *default-logging
     build: { context: .., dockerfile: lab/targets/webrce/Dockerfile }
     environment: { SIM_CVE: tomcat, SIM_BANNER: "Apache-Coyote/1.1" }
     networks: { targets_net: { ipv4_address: 172.30.0.19 } }
 
   # --- СКРЫТЫЙ сегмент: агенты сюда НЕ ходят, только через pivot (vsftpd) ---
   target-hidden-web:
+    logging: *default-logging
     build: { context: .., dockerfile: lab/targets/apache2449/Dockerfile }
     networks: { hidden_net: { ipv4_address: 10.66.0.11 } }
   target-hidden-ssh:
+    logging: *default-logging
     build: { context: .., dockerfile: lab/targets/oldssh/Dockerfile }
     networks: { hidden_net: { ipv4_address: 10.66.0.12 } }
   target-hidden-struts:                     # CVE-2017-5638 в скрытом сегменте — берётся через pivot
+    logging: *default-logging
     build: { context: .., dockerfile: lab/targets/webrce/Dockerfile }
     environment: { SIM_CVE: struts, SIM_BANNER: "Apache-Coyote/1.1" }
     networks: { hidden_net: { ipv4_address: 10.66.0.13 } }

@@ -1,0 +1,51 @@
+# ── .dockerignore — минимум в билд-контексте: легче образы, без секретов/мусора ──
+.git
+.gitignore
+.gitattributes
+.dockerignore
+.claude
+.idea
+.vscode
+
+# рантайм-данные и состояние (в образах не нужны)
+data/
+host/data/
+lab/data/
+**/state/
+**/__pycache__/
+**/*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# секреты / ключи / сертификаты
+*.key
+*.pem
+*.crt
+*_privatekey
+*_publickey
+.env
+*.local.env
+vpn_conf_vps/
+
+# логи / пиды / маркеры / дампы / архивы
+*.log
+*.pid
+status.json
+DESTROYED
+**/.armed
+*.tgz
+*.tar.gz
+
+# дев-хлам
+audit_*/
+*.audit/
+targets.txt
+*.targets
+scope.txt
+hosts.txt
+t.txt
+tmp*.txt
+123.txt
+docker-compose.override.yml
+node_modules/

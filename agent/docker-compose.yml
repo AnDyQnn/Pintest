@@ -1,7 +1,12 @@
 # agent/docker-compose.yml — поднятие ОДНОЙ ноды на реальном сервере (install.sh).
 # В докер-лабе ноды поднимает lab/docker-compose.yml тем же образом и образом.
+x-logging: &default-logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
 services:
   agent:
+    logging: *default-logging
     build:
       context: ..            # корень репо — нужны core/, exploits/, agent/
       dockerfile: agent/Dockerfile
