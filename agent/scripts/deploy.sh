@@ -38,6 +38,19 @@ https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_C
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 fi
 
+# ── swap: сборка awg-base (Go) и скан (nmap/vulners) прожорливы; на 1-2 ГБ VPS без
+# swap = OOM (агент/контейнер убивается). Компактно, идемпотентно, переживает ребут.
+if [ "$(id -u)" = 0 ]; then
+  SW=$(awk '/SwapTotal/{print $2}' /proc/meminfo 2>/dev/null || echo 0)
+  if [ "${SW:-0}" -lt 1048576 ] && [ ! -f /swapfile ]; then
+    echo "[deploy] создаю swap 2ГБ (защита от OOM)"
+    if dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none 2>/dev/null; then
+      chmod 600 /swapfile; mkswap /swapfile >/dev/null 2>&1
+      swapon /swapfile 2>/dev/null && { grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab; } || rm -f /swapfile
+    fi
+  fi
+fi
+
 # ── Хардненинг агент-СЕРВЕРА: fail2ban под перебор SSH (от РОДНОГО root). ───────────
 # ВАЖНО: ufw здесь НЕ включаем. Агент-сервер — docker-хост, а `ufw enable` ставит
 # FORWARD policy = DROP и рвёт сеть контейнера-агента (он не дозвонится по туннелю →

@@ -122,6 +122,11 @@ UNIT
 title "pintest · установка хоста"
 note "полный лог: $PINTEST_LOG"
 
+# swap ПЕРВЫМ делом: сборка образов + скан (nmap/vulners) прожорливы по памяти;
+# на 1-2 ГБ VPS без swap ловится OOM → ядро убивает backend/vpn → агенты теряют хост
+# и самоуничтожаются. Идемпотентно (переживает ребут через /etc/fstab).
+step_soft "гарантирую swap (защита от OOM при сборке/скане)" bash "$HERE/ensure_swap.sh"
+
 # 1) Docker
 if command -v docker >/dev/null 2>&1; then
   ok "Docker уже установлен"
