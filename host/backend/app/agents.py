@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import ipaddress
+import threading
 import time
 import uuid
 from typing import Dict, List, Optional
@@ -15,6 +16,8 @@ from typing import Dict, List, Optional
 import httpx
 
 from . import config, db, provisioner, vpn
+
+_ALLOC_LOCK = threading.Lock()  # атомарность allocate+insert IP (гонка при параллельном add_agent)
 
 # Живой кэш метрик/статуса для UI и WS (эпемерный)
 LIVE: Dict[str, Dict] = {}
@@ -42,10 +45,12 @@ def add_agent(name: str, ssh_host: str, ssh_port: int, ssh_user: str, ssh_passwo
     """Синхронный полный provisioning (запускать в threadpool из роутера)."""
     aid = uuid.uuid4().hex[:12]
     keys = vpn.gen_keys()                       # {private, public}
-    tip = _allocate_ip()
-    db.q("""INSERT INTO agents(id,name,ssh_host,ssh_port,ssh_user,tunnel_ip,pubkey,status)
-            VALUES(%s,%s,%s,%s,%s,%s,%s,'provisioning')""",
-         (aid, name, ssh_host, ssh_port, ssh_user, tip, keys["public"]))
+    # allocate+INSERT под локом: иначе параллельные add_agent берут ОДИН и тот же IP
+    with _ALLOC_LOCK:
+        tip = _allocate_ip()
+        db.q("""INSERT INTO agents(id,name,ssh_host,ssh_port,ssh_user,tunnel_ip,pubkey,status)
+                VALUES(%s,%s,%s,%s,%s,%s,%s,'provisioning')""",
+             (aid, name, ssh_host, ssh_port, ssh_user, tip, keys["public"]))
     # приватный ключ агента — на диск хоста (volume), как «ключик, что вбросили»
     (config.KEYS_DIR / f"{aid}.key").write_text(keys["private"], encoding="utf-8")
 
