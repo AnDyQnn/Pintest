@@ -18,7 +18,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from . import (admin_vpn, agents, backup, config, console, db, diff, exploitation, loot,
-               orchestrator, reports, targets, topology, updates, users, vpn)
+               monitor, orchestrator, reports, targets, topology, updates, users, vpn)
 
 app = FastAPI(title="pintest-host", version=config.VERSION)
 
@@ -138,6 +138,26 @@ def overview(_: bool = Depends(require_auth)):
         "findings": fcount, "captured": ccount,
         "vpn": vpn.status(), "version": config.VERSION,
     }
+
+
+# ------------------------------ мониторинг ---------------------------------
+@app.get("/api/monitor")
+def api_monitor(_: bool = Depends(require_auth)):
+    """Состояние ХОСТА (ресурсы) + живая телеметрия каждого агента (для вкладки «Мониторинг»)."""
+    out = []
+    for a in agents.list_agents():
+        live = a.get("live", {}) or {}
+        h = live.get("health", {}) or {}
+        out.append({
+            "id": a["id"], "name": a["name"], "status": a["status"],
+            "tunnel_ip": a["tunnel_ip"], "roles": a["roles"],
+            "cpu": live.get("cpu", []), "mem": live.get("mem", []),
+            "caps": h.get("metrics", {}), "deadman": h.get("deadman", {}),
+            "awg": h.get("awg", {}), "work": h.get("work", {}),
+            "uptime": h.get("uptime"), "last_seen": a["last_seen"],
+        })
+    return {"host": monitor.host_stats(), "vpn": vpn.status(),
+            "version": config.VERSION, "agents": out}
 
 
 # ------------------------------ агенты -------------------------------------

@@ -457,6 +457,26 @@ def _save_effective(outdir, pargs, plabel, blocked, note=""):
     except OSError:
         pass
 
+def _safe_parallel(requested: int) -> int:
+    """Не дать параллелизму превысить то, что тянет RAM (~250 МБ на поток nmap+NSE) —
+    защита от OOM/зависания ноды, даже если -j выкрутили вручную или на форме вебки."""
+    try:
+        avail = 0
+        with open("/proc/meminfo", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    avail = int(line.split()[1]) // 1024
+                    break
+        if avail:
+            cap = max(1, avail // 250)
+            if requested > cap:
+                print(f"  [защита] -j {requested} > безопасного {cap} (RAM {avail} МБ) — снижаю до {cap}")
+                return cap
+    except OSError:
+        pass
+    return max(1, int(requested))
+
+
 def scan_deep(alive, six, pargs, timing, acc, outdir, meta, do_tcp, do_udp):
     """Этап 3: порты/версии + NSE-уязвимости ОДНИМ проходом, чанки ПАРАЛЛЕЛЬНО.
     CVE появляются по ходу — после каждого чанка, а не в самом конце."""
@@ -477,7 +497,7 @@ def scan_deep(alive, six, pargs, timing, acc, outdir, meta, do_tcp, do_udp):
     stat_set(stage=3, phase=f"порты+CVE {fam}", done=done, total=total,
              pstart=time.time(), chunk=0, chunks=nchunks)
     _PSTART[0] = time.time()
-    with ThreadPoolExecutor(max_workers=PARALLEL) as ex:
+    with ThreadPoolExecutor(max_workers=_safe_parallel(PARALLEL)) as ex:
         futs = {ex.submit(_scan_chunk, ch, specs, six): ch for ch in _chunks(todo, CHUNK)}
         for fut in as_completed(futs):
             hosts = fut.result()

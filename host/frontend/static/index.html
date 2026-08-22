@@ -36,6 +36,7 @@
     </div>
     <nav>
       <a data-tab="overview" class="active"><span data-ic="gauge"></span>Обзор</a>
+      <a data-tab="monitor"><span data-ic="monitor"></span>Мониторинг</a>
       <a data-tab="agents"><span data-ic="split"></span>Агенты</a>
       <a data-tab="targets"><span data-ic="list"></span>Цели</a>
       <a data-tab="scan"><span data-ic="refresh"></span>Скан</a>
@@ -93,6 +94,14 @@
         <div class="card"><h3><span data-ic="shield"></span>Достижимость и точки отказа</h3>
           <div id="reach-panel"><div class="empty">нет данных</div></div></div>
       </div>
+    </section>
+
+    <!-- МОНИТОРИНГ -->
+    <section id="tab-monitor" class="tab">
+      <div class="card"><h3><span data-ic="server"></span>Хост <span class="muted" id="mon-host-sub"></span></h3>
+        <div id="mon-host" class="mon-host"><div class="empty">загрузка…</div></div></div>
+      <div class="card"><h3><span data-ic="split"></span>Агенты <span class="muted">— живая телеметрия по каждому</span></h3>
+        <div id="mon-agents" class="mon-grid"><div class="empty">агентов нет</div></div></div>
     </section>
 
     <!-- АГЕНТЫ -->

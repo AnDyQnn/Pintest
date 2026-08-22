@@ -189,6 +189,55 @@ async function loadOverview() {
 }
 setInterval(() => { if (!$("#app").classList.contains("hidden")) loadOverview(); }, 5000);
 
+// ── МОНИТОРИНГ (хост + живой дашборд под каждого агента) ──────────────────────
+function monBar(label, pct, val, warnAt) {
+  const p = Math.max(0, Math.min(100, Math.round(pct || 0)));
+  const cls = p >= (warnAt || 90) ? "hi" : (p >= 70 ? "mid" : "ok");
+  return '<div class="mon-bar"><div class="mon-bar-h"><span>' + label + '</span><span class="muted">' + val + '</span></div>' +
+         '<div class="mon-track"><i class="mon-fill ' + cls + '" style="width:' + p + '%"></i></div></div>';
+}
+function fmtUp(sec) { if (!sec) return "?"; const d = Math.floor(sec/86400), h = Math.floor(sec%86400/3600), m = Math.floor(sec%3600/60); return (d?d+"д ":"")+(h?h+"ч ":"")+m+"м"; }
+function renderMonitor(d) {
+  const h = d.host || {};
+  const sub = $("#mon-host-sub");
+  if (sub) sub.textContent = "v" + (d.version||"") + " · uptime " + fmtUp(h.uptime) + " · " + (h.cpu_count||"?") + " CPU" +
+    (d.vpn ? " · VPN " + (d.vpn.active != null ? d.vpn.active : d.vpn.peer_count) + " сессий" : "");
+  const hb = $("#mon-host");
+  if (hb) hb.innerHTML =
+    monBar("CPU (load1)", h.cpu_pct, ((h.loadavg||[0])[0]) + " · " + (h.cpu_pct||0) + "%") +
+    monBar("RAM", h.mem_pct, (h.mem_used_mb||0) + " / " + (h.mem_total_mb||0) + " МБ") +
+    monBar("Swap", h.swap_pct, h.swap_total_mb ? ((h.swap_used_mb||0) + " / " + h.swap_total_mb + " МБ") : "НЕТ swap — риск OOM!", 95) +
+    monBar("Диск (data)", h.disk_pct, (h.disk_free_gb||0) + " ГБ своб / " + (h.disk_total_gb||0) + " ГБ");
+  const ags = d.agents || [];
+  const box = $("#mon-agents"); if (!box) return;
+  if (!ags.length) { box.innerHTML = '<div class="empty">агентов нет — подключи ноду</div>'; return; }
+  box.innerHTML = ags.map((a) => {
+    const caps = a.caps || {}, dm = a.deadman || {}, awg = a.awg || {}, work = a.work || {};
+    const cpuLast = (a.cpu && a.cpu.length) ? a.cpu[a.cpu.length-1] : 0;
+    const memPct = caps.mem_total_mb ? Math.round((1 - (caps.mem_avail_mb||0)/caps.mem_total_mb)*100) : ((a.mem && a.mem.length) ? a.mem[a.mem.length-1] : 0);
+    const memTxt = caps.mem_total_mb ? ((caps.mem_total_mb-(caps.mem_avail_mb||0)) + " / " + caps.mem_total_mb + " МБ") : (memPct + "%");
+    const dmState = dm.paused ? '<span class="pill" style="color:#f0d072">пауза</span>'
+      : (dm.armed ? (dm.reachable ? '<span class="pill online">взведён·связь</span>' : '<span class="pill lost">взведён·НЕТ связи</span>')
+                  : '<span class="pill">взводится</span>');
+    return '<div class="mon-card"><div class="mon-card-h"><span class="pill ' + a.status + '">' + esc(a.status) + '</span> <b>' + esc(a.name) + '</b> <span class="muted">' + esc(a.tunnel_ip||"") + (caps.cpu_count?(" · "+caps.cpu_count+" CPU"):"") + '</span></div>' +
+      monBar("CPU", cpuLast, cpuLast + "%") +
+      monBar("RAM", memPct, memTxt) +
+      '<div class="mon-row"><span class="muted">CPU</span> ' + sparkline(a.cpu) + '</div>' +
+      '<div class="mon-foot"><span>dead-man: ' + dmState + '</span><span class="muted">handshake: ' + (awg.handshake?"есть":"нет") + ' · роли: ' + esc((a.roles||[]).join(",")||"scanner") + ' · чанков: ' + (work.active_chunks||0) + '</span></div></div>';
+  }).join("");
+  GWFX && GWFX.icons(box);
+}
+let MON_TIMER = null;
+TAB_LOADERS.monitor = async () => {
+  const tick = async () => { try { renderMonitor(await api("/monitor")); } catch (e) {} };
+  await tick();
+  clearInterval(MON_TIMER);
+  MON_TIMER = setInterval(() => {
+    if ($("#tab-monitor").classList.contains("active")) tick();
+    else { clearInterval(MON_TIMER); MON_TIMER = null; }
+  }, 3000);
+};
+
 // ── АГЕНТЫ ──────────────────────────────────────────────────────────────────
 TAB_LOADERS.agents = loadAgents;
 async function loadAgents() { try { renderAgentsLive(await api("/agents")); } catch (e) {} prefillAgentPort(); }

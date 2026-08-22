@@ -11,6 +11,10 @@ services:
   postgres:
     logging: *default-logging
     image: postgres:17-alpine
+    # экономим RAM на слабых VM: дефолтный postgres прожорлив
+    command: >
+      postgres -c shared_buffers=48MB -c work_mem=3MB -c max_connections=25
+               -c maintenance_work_mem=24MB -c effective_cache_size=192MB
     environment:
       POSTGRES_USER: pintest
       POSTGRES_PASSWORD: pintest
