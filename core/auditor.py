@@ -31,7 +31,15 @@ PARALLEL    = _env_int("PINTEST_PARALLEL", 4)      # сколько чанков
 NMAP_TIMEOUT = 3600      # сек: предохранитель — один чанк nmap не висит дольше часа
 V6_CAP      = 4096       # макс. размер IPv6-подсети, которую разворачиваем целиком
 V4_CAP      = 65536      # макс. размер IPv4-сети, которую разворачиваем в адреса
-SCRIPTS     = "vuln,vulners,http-enum,ssl-enum-ciphers,smb-os-discovery,smb-enum-shares"
+import os as _os
+# NSE-набор. Дефолт ЛЁГКИЙ и быстрый: vulners (CVE→эксплойт) + http-enum (веб) +
+# ssl-enum (лёгкий). Тяжёлый мета-скрипт `vuln` и `smb-*` УБРАНЫ из дефолта (гоняли
+# десятки медленных проверок на хост). Вернуть полный набор: PINTEST_SCRIPTS="vuln,vulners,...".
+SCRIPTS     = _os.environ.get("PINTEST_SCRIPTS", "vulners,http-enum,ssl-enum-ciphers")
+# ПОТОЛОК ВРЕМЕНИ НА ХОСТ (был 20m — на большом полигоне это вечность). 5m по умолчанию.
+HOST_TIMEOUT   = _os.environ.get("PINTEST_HOST_TIMEOUT", "5m")
+# потолок на ОДИН NSE-скрипт: если vulners не достучался до CVE-API — не виснет, а падает.
+SCRIPT_TIMEOUT = _os.environ.get("PINTEST_SCRIPT_TIMEOUT", "2m")
 EXTRA       = ["--max-retries", "1"]   # мёртвый хост не переспрашиваем по многу раз (умный дефолт)
 PREFLIGHT_HOSTS = 6      # сколько живых хостов пробуем в префлайте портов (выборка)
 PREFLIGHT_MAXP  = 1200   # не пробуем в префлайте больше стольки портов (огромные наборы -> топ)
@@ -461,8 +469,9 @@ def scan_deep(alive, six, pargs, timing, acc, outdir, meta, do_tcp, do_udp):
     if not todo:
         return                                    # всё уже просканировано (resume)
     specs = []
-    if do_tcp: specs.append(["-Pn", "-sV", timing, *pargs, "--script", SCRIPTS, "--open", "--host-timeout", "20m"])
-    if do_udp: specs.append(["-Pn", "-sU", "-sV", timing, "--top-ports", "50", "--script", SCRIPTS, "--open", "--host-timeout", "20m"])
+    _nse = ["--script", SCRIPTS, "--script-timeout", SCRIPT_TIMEOUT]
+    if do_tcp: specs.append(["-Pn", "-sV", timing, *pargs, *_nse, "--open", "--host-timeout", HOST_TIMEOUT])
+    if do_udp: specs.append(["-Pn", "-sU", "-sV", timing, "--top-ports", "50", *_nse, "--open", "--host-timeout", HOST_TIMEOUT])
     nchunks = (len(todo) + CHUNK - 1) // CHUNK
     _STAT.pop("alive", None)                     # убрать залипшее «живых» из discovery
     stat_set(stage=3, phase=f"порты+CVE {fam}", done=done, total=total,
