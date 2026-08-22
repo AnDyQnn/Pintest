@@ -55,6 +55,7 @@ services:
       CHUNK_SIZE: "3"
       ADMIN_USER: admin
       ADMIN_PASSWORD: admin
+      SSH_PORT: "22"
     volumes: [ ./data:/data ]
 
   frontend:

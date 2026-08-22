@@ -648,4 +648,4 @@ async def _startup():
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "version": config.VERSION}
+    return {"ok": True, "version": config.VERSION, "ssh_port": config.SSH_PORT}

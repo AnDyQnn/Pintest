@@ -186,7 +186,16 @@ setInterval(() => { if (!$("#app").classList.contains("hidden")) loadOverview();
 
 // ── АГЕНТЫ ──────────────────────────────────────────────────────────────────
 TAB_LOADERS.agents = loadAgents;
-async function loadAgents() { try { renderAgentsLive(await api("/agents")); } catch (e) {} }
+async function loadAgents() { try { renderAgentsLive(await api("/agents")); } catch (e) {} prefillAgentPort(); }
+// Порт новой ноды «подсасывается» сам: последний введённый (localStorage) → SSH-порт
+// хоста (обычно все серверы на одном порту) → 22. Поле не трогаем, если юзер уже вписал.
+async function prefillAgentPort() {
+  const el = $("#ag-port"); if (!el || el.value.trim()) return;
+  let p = "";
+  try { p = localStorage.getItem("pintest_agent_port") || ""; } catch (e) {}
+  if (!p) { try { const h = await api("/health"); p = h && h.ssh_port ? String(h.ssh_port) : ""; } catch (e) {} }
+  if (p && !el.value.trim()) el.value = p;
+}
 function sparkline(arr) {
   if (!arr || !arr.length) return "";
   return '<span class="spark-row">' + arr.slice(-18).map((v) =>
@@ -215,10 +224,12 @@ $("#ag-add").addEventListener("click", async () => {
   const deploy = $("#ag-deploy") ? $("#ag-deploy").checked : false;
   log.textContent = deploy ? "полный деплой с хоста… (apt + сборка + туннель, до нескольких минут)" : "провижнинг… (SSH + вброс AWG-ключа, ~10-20с)";
   try {
+    const port = +$("#ag-port").value || 22;
     const r = await api("/agents", { method: "POST", body: {
       name: $("#ag-name").value || $("#ag-host").value, ssh_host: $("#ag-host").value,
-      ssh_port: +$("#ag-port").value, ssh_user: $("#ag-user").value, ssh_password: $("#ag-pass").value,
+      ssh_port: port, ssh_user: $("#ag-user").value, ssh_password: $("#ag-pass").value,
       full_deploy: deploy } });
+    try { localStorage.setItem("pintest_agent_port", String(port)); } catch (e) {}  // запомнить порт
     log.textContent = `[${r.status}] ${r.name} · ${r.tunnel_ip}\n` + (r.log || []).join("\n");
     loadAgents();
   } catch (e) { log.textContent = "ошибка: " + e.message; }

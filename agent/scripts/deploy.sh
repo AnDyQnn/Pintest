@@ -39,17 +39,14 @@ https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_C
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 fi
 
-# ── Хардненинг агент-СЕРВЕРА: та же обвязка, что на хосте (ufw + fail2ban), под ─────
-# ПОРТ SSH ноды, от РОДНОГО root (нового юзера не создаём). Туннель агент-инициируемый
-# (исходящий на host:51820) → default-deny-incoming его не рвёт; agent_api живёт на awg0
-# ВНУТРИ контейнера и на WAN не торчит. Отключить: AGENT_HARDEN=0.
+# ── Хардненинг агент-СЕРВЕРА: fail2ban под перебор SSH (от РОДНОГО root). ───────────
+# ВАЖНО: ufw здесь НЕ включаем. Агент-сервер — docker-хост, а `ufw enable` ставит
+# FORWARD policy = DROP и рвёт сеть контейнера-агента (он не дозвонится по туннелю →
+# нода LOST). В рабочем VPN-проекте юзера ufw на docker-хостах тоже не включается —
+# защиту даёт fail2ban. Отключить хардненинг целиком: AGENT_HARDEN=0.
 if [ "${AGENT_HARDEN:-1}" = "1" ]; then
-  echo "[deploy] хардненинг ноды: ufw + fail2ban (SSH-порт ${SSH_PORT})"
-  apt-get install -y ufw fail2ban || echo "[deploy][WARN] ufw/fail2ban не поставились"
-  ufw allow "${SSH_PORT}/tcp" || true      # SSH (provisioning с хоста)
-  ufw default deny incoming || true
-  ufw default allow outgoing || true       # исходящий туннель на host:51820 остаётся
-  ufw --force enable || true
+  echo "[deploy] хардненинг ноды: fail2ban (SSH-порт ${SSH_PORT})"
+  apt-get install -y fail2ban python3-systemd || echo "[deploy][WARN] fail2ban не поставился"
   # fail2ban: journald (sshd не пишет в /var/log/auth.log на совр. Ubuntu) + ignoreip приватных
   cat > /etc/fail2ban/jail.local <<'F2B'
 [DEFAULT]
