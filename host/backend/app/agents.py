@@ -101,8 +101,8 @@ def pause_deadman_all(minutes: int = 15) -> Dict:
     return {"paused_agents": n, "minutes": int(minutes)}
 
 
-def retire_lost_agents(max_lost_seconds: int = 600) -> Dict:
-    """Давно-потерянные агенты (нет связи > max_lost_seconds) считаем МЁРТВЫМИ
+def retire_lost_agents(max_lost_seconds: int = 1800) -> Dict:
+    """Давно-потерянные агенты (нет связи > max_lost_seconds, деф. 30 мин — заведомо больше деплоя) считаем МЁРТВЫМИ
     (самоуничтожились/сгинули): снимаем их awg-пир и помечаем destroyed. Так дашборд
     не копит мёртвые сессии от нод, ушедших в self-destruct."""
     now = time.time()
