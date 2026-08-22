@@ -34,10 +34,11 @@ for i in $(seq 1 10); do
 done
 
 mkdir -p "$STATE_DIR"
-ARMED_FILE="${PINTEST_ROOT:-/opt/pintest}/agent/.armed"   # в ФС контейнера (см. config.py)
+# ВЗВОД dead-man здесь НЕ делаем: его взводит сам агент (deadman._loop) идемпотентно —
+# только после УСТОЙЧИВОЙ связи с хостом (DEADMAN_ARM_GRACE), чтобы кратковременная
+# заминка на реальном интернете не приводила к ложному самоуничтожению.
 if [ "$ok" = "1" ]; then
-  touch "$ARMED_FILE"          # взвести dead-man switch
-  echo "[awg] туннель поднят, хост ${HOST_IP} доступен — dead-man ВЗВЕДЁН"
+  echo "[awg] туннель поднят, хост ${HOST_IP} доступен — dead-man взведётся сам после устойчивого коннекта"
   awg show "$IFACE" 2>/dev/null | sed 's/^/[awg] /'
   exit 0
 else

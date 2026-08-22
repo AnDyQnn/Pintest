@@ -21,14 +21,20 @@ API_PORT = int(os.environ.get("AGENT_API_PORT", "9101"))
 HOST_TUNNEL_IP = os.environ.get("HOST_TUNNEL_IP", "10.9.0.1")  # адрес хоста внутри AWG
 AWG_IFACE = os.environ.get("AWG_IFACE", "awg0")
 
-# Dead-man switch: сколько секунд без связи с хостом до самоуничтожения
+# Dead-man switch: сколько секунд без связи с хостом до самоуничтожения.
+# ВАЖНО: таймаут должен быть ЗАМЕТНО больше PersistentKeepalive (25с) — иначе на реальном
+# интернете (NAT/джиттер) обычная пауза keepalive-цикла ложно триггерит самоуничтожение.
 DEADMAN_ENABLED = os.environ.get("DEADMAN_ENABLED", "1") == "1"
-DEADMAN_TIMEOUT = int(os.environ.get("DEADMAN_TIMEOUT", "20"))
-DEADMAN_INTERVAL = int(os.environ.get("DEADMAN_INTERVAL", "3"))
-# Проверка при СТАРТЕ: если нода была провижнена (armed), но при запуске хост не виден
-# за это число секунд — быстрое самоуничтожение (сценарий «отрубили сеть → выключили →
-# включили»: хвосты чистятся сразу, не дожидаясь полного таймаута).
-DEADMAN_BOOT_GRACE = int(os.environ.get("DEADMAN_BOOT_GRACE", "8"))
+DEADMAN_TIMEOUT = int(os.environ.get("DEADMAN_TIMEOUT", "90"))   # >3× keepalive
+DEADMAN_INTERVAL = int(os.environ.get("DEADMAN_INTERVAL", "5"))
+# ВЗВОД (arming): dead-man взводится ИДЕМПОТЕНТНО только после того, как нода
+# установлена И получила УСТОЙЧИВУЮ связь с хостом — непрерывную reachability в течение
+# ARM_GRACE секунд. Пока связь не подтверждена столько времени — нода НЕ вооружена и
+# себя не тронет (свежая/полу-настроенная нода не нукается зря).
+DEADMAN_ARM_GRACE = int(os.environ.get("DEADMAN_ARM_GRACE", "15"))
+# Проверка при СТАРТЕ уже-взведённой ноды: если при запуске хост не виден за это число
+# секунд — самоуничтожение (сценарий «отрубили сеть → выключили → включили»).
+DEADMAN_BOOT_GRACE = int(os.environ.get("DEADMAN_BOOT_GRACE", "30"))
 
 # Файлы-маркеры состояния.
 # ARMED_FLAG — в ФС контейнера (не на volume!): переживает stop/start той же ноды
