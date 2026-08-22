@@ -85,6 +85,29 @@ def _probe(tunnel_ip: str) -> bool:
         return False
 
 
+def reconcile_peers() -> Dict:
+    """Снять с awg-сервера ВИСЯЧИЕ пиры — те, чей pubkey не принадлежит ни живому
+    агенту, ни админ-конфигу (напр. остались от уничтоженных нод). Само-лечение
+    счётчика «VPN-пиров». Best-effort."""
+    known = set()
+    for r in db.all_("SELECT pubkey FROM agents WHERE pubkey IS NOT NULL AND status != 'destroyed'"):
+        if r["pubkey"]:
+            known.add(r["pubkey"])
+    for r in db.all_("SELECT pubkey FROM admin_configs WHERE pubkey IS NOT NULL"):
+        if r["pubkey"]:
+            known.add(r["pubkey"])
+    removed = 0
+    for p in (vpn.status().get("peers") or []):
+        pk = p.get("peer")
+        if pk and pk not in known:
+            try:
+                vpn.remove_peer(pk)
+                removed += 1
+            except Exception:  # noqa: BLE001
+                pass
+    return {"removed": removed, "kept": len(known)}
+
+
 def remove_agent(aid: str) -> None:
     rec = db.one("SELECT pubkey FROM agents WHERE id=%s", (aid,))
     if rec and rec.get("pubkey"):
@@ -124,6 +147,12 @@ def destroy(aid: str) -> Dict:
         httpx.post(_base(a["tunnel_ip"]) + "/destroy", timeout=10)
     except Exception:  # noqa: BLE001
         pass
+    # снять awg-пир уничтоженной ноды — иначе висит на сервере и завышает счётчик VPN-пиров
+    if a and a.get("pubkey"):
+        try:
+            vpn.remove_peer(a["pubkey"])
+        except Exception:  # noqa: BLE001
+            pass
     db.q("UPDATE agents SET status='destroyed' WHERE id=%s", (aid,))
     return {"destroyed": True}
 

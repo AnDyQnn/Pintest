@@ -650,6 +650,14 @@ async def _startup():
     asyncio.create_task(agents.heartbeat_loop())
     asyncio.create_task(backup.daily_loop())              # ежедневный авто-снимок состояния
 
+    async def _reconcile_peers_once():                    # снять висячие awg-пиры (уничтоженные ноды)
+        await asyncio.sleep(8)                            # дать vpn/agents подняться
+        try:
+            await run_in_threadpool(agents.reconcile_peers)
+        except Exception:  # noqa: BLE001
+            pass
+    asyncio.create_task(_reconcile_peers_once())
+
 
 @app.get("/api/health")
 def health():
