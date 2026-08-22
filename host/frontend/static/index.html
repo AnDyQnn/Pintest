@@ -129,9 +129,10 @@
     <!-- ЦЕЛИ -->
     <section id="tab-targets" class="tab">
       <div class="card">
-        <h3><span data-ic="list"></span>Список целей <span class="muted">— грязный, почистим один раз</span></h3>
-        <textarea id="targets-raw" rows="10" placeholder="172.30.0.0/24&#10;10.10.0.5-20&#10;мусор игнорируется"></textarea>
+        <h3><span data-ic="list"></span>Список целей <span class="muted">— грязный или готовый alive-список</span></h3>
+        <textarea id="targets-raw" rows="10" placeholder="172.30.0.0/24&#10;10.10.0.5-20&#10;мусор игнорируется&#10;# или уже живые IP по одному в строке"></textarea>
         <div class="btns" style="margin-top:.8rem"><button id="targets-save" class="btn-primary">Сохранить и почистить</button></div>
+        <div class="muted" style="margin-top:.6rem">Вставь <b>грязный список</b> (CIDR · диапазоны · мусор — почистим и развернём) <b>или</b> уже готовый <b>alive-список</b> IP. Что делать с разведкой (шаг 1) выбираешь в «Скан»: галка <b>«Цели уже живые»</b> пропустит host discovery и погонит скан сразу; без неё живость перепроверится заново.</div>
         <div id="targets-result" class="log"></div>
       </div>
     </section>
@@ -147,8 +148,8 @@
           <label>Параллелизм -j<input id="sc-jobs" value="2"></label>
           <label class="chk"><input type="checkbox" id="sc-noudp" checked> --no-udp</label>
           <label class="chk"><input type="checkbox" id="sc-notcp"> --no-tcp</label>
-          <label class="chk"><input type="checkbox" id="sc-pn"> --Pn</label>
-          <label class="chk"><input type="checkbox" id="sc-nopre"> --no-preflight</label>
+          <label class="chk" title="Список уже проверен на живость (alive-список) — не гонять host discovery заново, все цели считать живыми. СНЯТА = шаг 1 (разведка) прогоняется заново и перепроверяет живость."><input type="checkbox" id="sc-pn"> Цели уже живые — пропустить разведку <span class="muted">(--Pn)</span></label>
+          <label class="chk" title="Не отсеивать порты, которые режет провайдер/VPN — сканировать весь набор как есть."><input type="checkbox" id="sc-nopre"> Без пробы портов <span class="muted">(--no-preflight)</span></label>
           <label>Раздача чанков<select id="sc-mode"><option value="parallel">параллельно (веером)</option><option value="sequential">последовательно (по очереди)</option></select></label>
           <label>DIFF против<select id="sc-diff"><option value="">— нет —</option></select></label>
         </div>
