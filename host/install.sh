@@ -94,6 +94,30 @@ fresh_wipe(){
 
 stack_up(){ ( cd "$HERE" && docker compose --env-file config.env up -d --build ); }
 
+# systemd-сервис для кнопки «Обновить хост» в вебке: демон ловит маркер и обновляет
+# хост (git + пересборка с откатом). Без него кнопка пишет заявку, а исполнять некому.
+setup_update_daemon(){
+  cat > /etc/systemd/system/pintest-update.service <<UNIT
+[Unit]
+Description=Pintest host auto-updater (watch marker from web UI)
+After=network-online.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=$ROOT
+ExecStart=/bin/bash $HERE/update.sh --watch
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable pintest-update.service
+  systemctl restart pintest-update.service
+}
+
 # ------------------------------- ход --------------------------------------
 title "pintest · установка хоста"
 note "полный лог: $PINTEST_LOG"
@@ -181,6 +205,7 @@ if [ -f "$PGV_FILE" ]; then
 fi
 
 step "собираю и поднимаю стек (может занять пару минут)" stack_up
+step_soft "ставлю демон авто-обновления (кнопка «Обновить хост»)" setup_update_daemon
 
 # 6) bootstrap admin VPN
 BOOT="$HERE/data/bootstrap-admin.conf"

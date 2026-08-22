@@ -595,6 +595,11 @@ async def api_update_host(body: HostUpdateIn, _: bool = Depends(require_auth)):
     return await run_in_threadpool(updates.host_update_git)
 
 
+@app.get("/api/update/status")
+async def api_update_status(_: bool = Depends(require_auth)):
+    return await run_in_threadpool(updates.host_update_status)
+
+
 def _safe_topology() -> Dict:
     """Целевой слой для live — не роняем сокет, если БД временно недоступна."""
     try:

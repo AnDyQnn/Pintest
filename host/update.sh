@@ -29,6 +29,14 @@ COMPOSE="docker compose -f $HERE/docker-compose.yml"
 BRANCH="${PINTEST_BRANCH:-$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)}"
 REMOTE="${PINTEST_REMOTE:-origin}"
 MARKER="$HERE/data/.update-request"
+STATUS="$HERE/data/.update-status"
+
+# статус последнего обновления — вебка его читает (/api/update/status), показывает исход
+write_status(){  # $1=status(updated|uptodate|failed|running) $2=from $3=to
+  mkdir -p "$HERE/data"
+  printf '{"ts":%s,"status":"%s","from":"%s","to":"%s"}\n' \
+    "$(date +%s)" "$1" "${2:-}" "${3:-}" > "$STATUS" 2>/dev/null || true
+}
 
 compose_up(){ $COMPOSE up -d --build; }
 
@@ -39,10 +47,13 @@ do_update() {
   title "обновление хоста"
   info "текущий коммит: ${prev:0:12} · ветка ${BRANCH}"
 
+  write_status running "${prev:0:12}" ""
+
   rollback() {
     warn "ОШИБКА обновления — откат на ${prev:0:12}"
     git reset --hard "$prev" || true
     $COMPOSE up -d --build >>"$PINTEST_LOG" 2>&1 || true
+    write_status failed "${prev:0:12}" "${prev:0:12}"
     fail "откат выполнен, поднята прежняя версия (лог: $PINTEST_LOG)"
   }
   trap rollback ERR
@@ -51,7 +62,8 @@ do_update() {
   step "git reset --hard ${REMOTE}/${BRANCH}" git reset --hard "$REMOTE/$BRANCH"
   local new; new="$(git rev-parse HEAD)"
   if [ "$new" = "$prev" ]; then
-    ok "уже актуально (${new:0:12}) — пересборка не нужна"; trap - ERR; return 0
+    ok "уже актуально (${new:0:12}) — пересборка не нужна"
+    write_status uptodate "${prev:0:12}" "${new:0:12}"; trap - ERR; return 0
   fi
   ok "код обновлён: ${prev:0:12} → ${new:0:12}"
 
@@ -59,6 +71,7 @@ do_update() {
 
   step "пересобираю и поднимаю стек" compose_up
   trap - ERR
+  write_status updated "${prev:0:12}" "${new:0:12}"
   ok "═══ ХОСТ ОБНОВЛЁН до ${new:0:12} ═══"
   $COMPOSE ps >>"$PINTEST_LOG" 2>&1 || true
   note "статус контейнеров — в логе: $PINTEST_LOG"

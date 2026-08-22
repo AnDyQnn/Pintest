@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import tarfile
 import time
 from pathlib import Path
@@ -25,6 +26,17 @@ from . import agents, config, provisioner
 # а на самом хосте крутится  sudo bash host/update.sh --watch , который ловит
 # маркер и делает git reset --hard + docker compose up --build с авто-откатом.
 UPDATE_MARKER = config.DATA_DIR / ".update-request"
+UPDATE_STATUS = config.DATA_DIR / ".update-status"
+
+
+def host_update_status() -> Dict:
+    """Исход последнего обновления (пишет host/update.sh) — вебка показывает результат."""
+    try:
+        if UPDATE_STATUS.exists():
+            return json.loads(UPDATE_STATUS.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        pass
+    return {"status": "none"}
 
 
 def host_update_git() -> Dict:

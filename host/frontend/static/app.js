@@ -79,7 +79,12 @@ setInterval(() => { const c = $("#clock"); if (c) c.textContent = new Date().toL
 
 // ── авторизация ─────────────────────────────────────────────────────────────
 function showLogin() { $("#login").classList.remove("hidden"); $("#app").classList.add("hidden"); }
-function showApp() { $("#login").classList.add("hidden"); $("#app").classList.remove("hidden"); GWFX && GWFX.icons(document); startLive(); loadOverview(); }
+function showApp() { $("#login").classList.add("hidden"); $("#app").classList.remove("hidden"); GWFX && GWFX.icons(document); startLive(); loadOverview(); loadVersion(); }
+let APP_VERSION = "";
+async function loadVersion() {
+  try { const h = await api("/health"); APP_VERSION = h.version || ""; const el = $("#app-version"); if (el) el.textContent = APP_VERSION ? "v" + APP_VERSION : ""; return APP_VERSION; }
+  catch (e) { return APP_VERSION; }
+}
 $("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
@@ -521,9 +526,24 @@ TAB_LOADERS.updates = async () => {
   } catch (e) {}
 };
 $("#up-host-git").addEventListener("click", async () => {
-  $("#up-host-log").textContent = "ставлю заявку на обновление хоста…";
-  try { const r = await api("/update/host", { method: "POST", body: { method: "git" } }); $("#up-host-log").textContent = (r.log || []).join("\n") + "\n" + (r.note || ""); }
-  catch (e) { $("#up-host-log").textContent = "ошибка: " + e.message; }
+  const logEl = $("#up-host-log");
+  const t0 = Math.floor(Date.now() / 1000);
+  logEl.textContent = "ставлю заявку на обновление хоста…";
+  try { const r = await api("/update/host", { method: "POST", body: { method: "git" } });
+    logEl.textContent = (r.log || []).join("\n") + "\n" + (r.note || ""); }
+  catch (e) { logEl.textContent = "ошибка: " + e.message; return; }
+  logEl.textContent += "\n\nжду выполнения демоном (git + пересборка, до ~2-3 мин)…";
+  for (let i = 0; i < 60; i++) {                 // ~4 мин; backend отвалится на пересборке
+    await new Promise((r) => setTimeout(r, 4000));
+    let s = null;
+    try { s = await api("/update/status"); } catch (e) { logEl.textContent += "\n· backend пересобирается…"; continue; }
+    if (!s || !s.ts || s.ts < t0) continue;      // старый/пустой статус — ждём наш
+    if (s.status === "running") { logEl.textContent += "\n· обновление идёт…"; continue; }
+    if (s.status === "updated") { logEl.textContent += `\n✓ ОБНОВЛЕНО: ${s.from} → ${s.to}`; loadVersion(); return; }
+    if (s.status === "uptodate") { logEl.textContent += `\n✓ уже актуально (${s.to}) — пересборка не требовалась`; loadVersion(); return; }
+    if (s.status === "failed") { logEl.textContent += `\n✗ ошибка обновления — выполнен откат на ${s.to}`; return; }
+  }
+  logEl.textContent += "\n\n⚠ демон не ответил за ~4 мин. Запущен ли watch-демон на хосте?\n   sudo systemctl status pintest-update\n   (или разово из консоли: sudo bash host/update.sh)";
 });
 
 // ── НАСТРОЙКИ ───────────────────────────────────────────────────────────────
