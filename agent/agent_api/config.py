@@ -25,7 +25,7 @@ AWG_IFACE = os.environ.get("AWG_IFACE", "awg0")
 # ВАЖНО: таймаут должен быть ЗАМЕТНО больше PersistentKeepalive (25с) — иначе на реальном
 # интернете (NAT/джиттер) обычная пауза keepalive-цикла ложно триггерит самоуничтожение.
 DEADMAN_ENABLED = os.environ.get("DEADMAN_ENABLED", "1") == "1"
-DEADMAN_TIMEOUT = int(os.environ.get("DEADMAN_TIMEOUT", "90"))   # >3× keepalive
+DEADMAN_TIMEOUT = int(os.environ.get("DEADMAN_TIMEOUT", "120"))   # >3× keepalive
 DEADMAN_INTERVAL = int(os.environ.get("DEADMAN_INTERVAL", "5"))
 # ВЗВОД (arming): dead-man взводится ИДЕМПОТЕНТНО только после того, как нода
 # установлена И получила УСТОЙЧИВУЮ связь с хостом — непрерывную reachability в течение
@@ -35,10 +35,10 @@ DEADMAN_ARM_GRACE = int(os.environ.get("DEADMAN_ARM_GRACE", "15"))
 # Порог «свежести» AmneziaWG-handshake для reachability. Больше таймаута и заведомо
 # больше интервала рехендшейка WireGuard (~120с), чтобы рабочий-но-простаивающий туннель
 # считался живым даже при фильтрации ICMP (иначе ложное самоуничтожение).
-DEADMAN_HANDSHAKE_MAX = int(os.environ.get("DEADMAN_HANDSHAKE_MAX", "150"))
+DEADMAN_HANDSHAKE_MAX = int(os.environ.get("DEADMAN_HANDSHAKE_MAX", "180"))
 # Проверка при СТАРТЕ уже-взведённой ноды: если при запуске хост не виден за это число
 # секунд — самоуничтожение (сценарий «отрубили сеть → выключили → включили»).
-DEADMAN_BOOT_GRACE = int(os.environ.get("DEADMAN_BOOT_GRACE", "30"))
+DEADMAN_BOOT_GRACE = int(os.environ.get("DEADMAN_BOOT_GRACE", "45"))
 
 # Файлы-маркеры состояния.
 # ARMED_FLAG — в ФС контейнера (не на volume!): переживает stop/start той же ноды

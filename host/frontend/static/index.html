@@ -74,10 +74,14 @@
         <h3><span data-ic="split"></span>Живая топология сети
           <span class="muted" id="topo-legend"></span>
           <span class="topo-key">
-            <i class="kc kc-host"></i>хост <i class="kc kc-agent"></i>агент
-            <i class="kc kc-captured"></i>обработана <i class="kc kc-exploitable"></i>обрабатываема
-            <i class="kc kc-vulnerable"></i>уязвима <i class="kc kc-discovered"></i>обнаружена
-            <i class="kc kc-cut"></i>недостижима <i class="kc kc-relay"></i>реле
+            <i class="kc kc-host" title="Хост — control plane (панель)"></i><span title="Хост — control plane (панель)">хост</span>
+            <i class="kc kc-agent" title="Агент-нода: сканирует и эксплуатирует цели"></i><span title="Агент-нода: сканирует и эксплуатирует цели">агент</span>
+            <i class="kc kc-captured" title="ЗАХВАЧЕНА: capture отработал, флаг взят (залутали)"></i><span title="ЗАХВАЧЕНА: capture отработал, флаг взят (залутали)">захвачена</span>
+            <i class="kc kc-exploitable" title="БЕРЁТСЯ: есть CVE с готовым модулем / check подтвердил — можно захватывать"></i><span title="БЕРЁТСЯ: есть CVE с готовым модулем / check подтвердил — можно захватывать">берётся</span>
+            <i class="kc kc-vulnerable" title="УЯЗВИМА: CVE найдена, но модуля под неё пока нет"></i><span title="УЯЗВИМА: CVE найдена, но модуля под неё пока нет">уязвима</span>
+            <i class="kc kc-discovered" title="ПРОСКАНИРОВАНА: хост живой, зацепок (CVE) нет — просто пропинговали/порты"></i><span title="ПРОСКАНИРОВАНА: хост живой, зацепок (CVE) нет — просто пропинговали/порты">просканирована</span>
+            <i class="kc kc-cut" title="НЕДОСТИЖИМА: маршрут отрезан — нет живого агента, который её видит"></i><span title="НЕДОСТИЖИМА: маршрут отрезан — нет живого агента, который её видит">недостижима</span>
+            <i class="kc kc-relay" title="РЕЛЕ: захваченный узел стал плацдармом — через него хост достаёт сеть за ним"></i><span title="РЕЛЕ: захваченный узел стал плацдармом — через него хост достаёт сеть за ним">реле</span>
           </span>
         </h3>
         <svg id="topology" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
