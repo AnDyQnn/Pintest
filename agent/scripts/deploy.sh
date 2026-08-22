@@ -22,10 +22,9 @@ export PATH="/usr/bin:/usr/sbin:/bin:/sbin:${PATH:-}"
 
 [ -f "$BUNDLE" ] || { echo "[deploy] нет бандла $BUNDLE"; exit 2; }
 
-echo "[deploy] apt update/upgrade + базовые пакеты"
+echo "[deploy] apt update + базовые пакеты (без upgrade — не нужен для агента, экономит время)"
 apt-get update -y
-apt-get upgrade -y
-apt-get install -y ca-certificates curl
+apt-get install -y --no-install-recommends ca-certificates curl
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "[deploy] ставлю Docker"
