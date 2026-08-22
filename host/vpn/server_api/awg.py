@@ -10,6 +10,7 @@ import json
 import os
 import re
 import subprocess
+import time
 from pathlib import Path
 from typing import Dict, List
 
@@ -184,5 +185,17 @@ def status() -> Dict:
             cur["handshake"] = line.split(":", 1)[1].strip()
         elif cur is not None and line.startswith("endpoint:"):
             cur["endpoint"] = line.split(":", 1)[1].strip()
+    # АКТИВНЫЕ сессии = пиры со СВЕЖИМ handshake (реально на связи сейчас). Мёртвый/
+    # висячий пир (самоуничтоженный агент, старый конфиг) handshake не обновляет → не в счёте.
+    active = 0
+    try:
+        hs = _run(["awg", "show", IFACE, "latest-handshakes"])
+        now = time.time()
+        for ln in hs.splitlines():
+            pr = ln.split()
+            if len(pr) >= 2 and pr[1].isdigit() and int(pr[1]) > 0 and now - int(pr[1]) < 180:
+                active += 1
+    except Exception:  # noqa: BLE001
+        active = len(peers)
     return {"up": up_iface, "iface": IFACE, "listen_port": LISTEN_PORT, "peers": peers,
-            "peer_count": len(peers)}
+            "peer_count": len(peers), "active": active}

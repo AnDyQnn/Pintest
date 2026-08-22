@@ -631,6 +631,7 @@ async def live(ws: WebSocket):
                     "ssh_port": a.get("ssh_port"),
                     "cpu": a.get("live", {}).get("cpu", []),
                     "mem": a.get("live", {}).get("mem", []),
+                    "caps": (a.get("live", {}).get("health", {}) or {}).get("metrics", {}),
                     "last_seen": a["last_seen"],
                 } for a in ags],
                 "jobs": running,
@@ -656,13 +657,8 @@ async def _startup():
     asyncio.create_task(agents.heartbeat_loop())
     asyncio.create_task(backup.daily_loop())              # ежедневный авто-снимок состояния
 
-    async def _reconcile_peers_once():                    # снять висячие awg-пиры (уничтоженные ноды)
-        await asyncio.sleep(8)                            # дать vpn/agents подняться
-        try:
-            await run_in_threadpool(agents.reconcile_peers)
-        except Exception:  # noqa: BLE001
-            pass
-    asyncio.create_task(_reconcile_peers_once())
+    asyncio.create_task(agents.cleanup_loop())            # периодич. чистка дашборда: ретайр
+                                                          # давно-потерянных нод + снятие висячих awg-пиров
 
 
 @app.get("/api/health")

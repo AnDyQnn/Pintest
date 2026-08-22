@@ -101,6 +101,43 @@ def pause_deadman_all(minutes: int = 15) -> Dict:
     return {"paused_agents": n, "minutes": int(minutes)}
 
 
+def retire_lost_agents(max_lost_seconds: int = 600) -> Dict:
+    """Давно-потерянные агенты (нет связи > max_lost_seconds) считаем МЁРТВЫМИ
+    (самоуничтожились/сгинули): снимаем их awg-пир и помечаем destroyed. Так дашборд
+    не копит мёртвые сессии от нод, ушедших в self-destruct."""
+    now = time.time()
+    rows = db.all_("SELECT id, pubkey, last_seen FROM agents WHERE status='lost'")
+    retired = 0
+    for r in rows:
+        if now - (r.get("last_seen") or 0) < max_lost_seconds:
+            continue
+        if r.get("pubkey"):
+            try:
+                vpn.remove_peer(r["pubkey"])
+            except Exception:  # noqa: BLE001
+                pass
+        db.q("UPDATE agents SET status='destroyed' WHERE id=%s", (r["id"],))
+        LIVE.pop(r["id"], None)
+        retired += 1
+    return {"retired": retired}
+
+
+def cleanup_loop():
+    """Периодически чистит дашборд от мёртвых пиров/нод: ретайр давно-потерянных +
+    снятие висячих awg-пиров. Раз в ~2 минуты."""
+    import asyncio
+    async def _run():
+        await asyncio.sleep(20)   # дать стеку/агентам подняться
+        while True:
+            try:
+                retire_lost_agents()
+                reconcile_peers()
+            except Exception:  # noqa: BLE001
+                pass
+            await asyncio.sleep(120)
+    return _run()
+
+
 def reconcile_peers() -> Dict:
     """Снять с awg-сервера ВИСЯЧИЕ пиры — те, чей pubkey не принадлежит ни живому
     агенту, ни админ-конфигу (напр. остались от уничтоженных нод). Само-лечение

@@ -67,7 +67,7 @@
         <div class="stat" data-accent="amber"><span class="stat-ic" data-ic="refresh"></span>
           <div><div class="stat-num" id="kpi-reroute">0</div><div class="stat-cap">рокировок маршрута</div></div></div>
         <div class="stat" data-accent="blue"><span class="stat-ic" data-ic="lock"></span>
-          <div><div class="stat-num" id="kpi-peers">0</div><div class="stat-cap">VPN-пиров</div></div></div>
+          <div><div class="stat-num" id="kpi-peers">0</div><div class="stat-cap" title="Активные VPN-сессии (со свежим handshake): агенты на связи + твоё админ-подключение. Мёртвые/висячие пиры не считаются.">VPN-сессий</div></div></div>
       </div>
 
       <div class="card topo-card">
@@ -143,6 +143,7 @@
           <label>Раздача чанков<select id="sc-mode"><option value="parallel">параллельно (веером)</option><option value="sequential">последовательно (по очереди)</option></select></label>
           <label>DIFF против<select id="sc-diff"><option value="">— нет —</option></select></label>
         </div>
+        <div id="scan-advice" class="scan-advice"></div>
         <div class="btns"><button id="sc-start" class="btn-primary">Запустить скан</button></div>
         <div id="scan-result" class="log"></div>
       </div>

@@ -138,7 +138,7 @@ function renderLive(d) {
   $("#topo-legend").textContent =
     `· ноды: на связи ${cnt("online")} · потеряно ${cnt("lost")} · уничтожено ${cnt("destroyed")}` +
     (tt ? `  ·  цели: обработано ${tc.captured||0} · обрабатываемо ${tc.exploitable||0} · уязвимо ${tc.vulnerable||0} · обнаружено ${tc.discovered||0} · в очереди ${tc.pending||0}${reroute}${cut}` : "");
-  const peers = (d.vpn && d.vpn.peer_count) || 0;
+  const peers = (d.vpn && (d.vpn.active != null ? d.vpn.active : d.vpn.peer_count)) || 0;  // АКТИВНЫЕ сессии (свежий handshake), не сумма конфигов
   const total = a.length, reach = topo.reachable || 0, unreach = topo.unreachable || 0;
   $("#kpi-agents").textContent = cnt("online");
   $("#kpi-agents-total").textContent = total ? "/" + total : "";
@@ -255,7 +255,56 @@ $("#targets-save").addEventListener("click", async () => {
 });
 
 // ── СКАН ────────────────────────────────────────────────────────────────────
+// ── СКАН: живая оценка нагрузки/шума (по железу слабейшего онлайн-агента) ──
+function scanCaps() {
+  const ags = (lastLive.agents || []).filter((a) => a.status === "online");
+  let mem = Infinity, cpu = Infinity;
+  ags.forEach((a) => { const c = a.caps || {};
+    if (c.mem_total_mb) mem = Math.min(mem, c.mem_total_mb);
+    if (c.cpu_count) cpu = Math.min(cpu, c.cpu_count); });
+  return { mem: isFinite(mem) ? mem : null, cpu: isFinite(cpu) ? cpu : null, agents: ags.length };
+}
+let SCAN_BLOCKED = false;
+function scanAdvice() {
+  const el = $("#scan-advice"); if (!el) return;
+  const pmode = $("#sc-ports-mode").value, pval = +$("#sc-ports-val").value || 0;
+  const timing = +$("#sc-timing").value, jobs = +$("#sc-jobs").value || 1;
+  const nopre = $("#sc-nopre") && $("#sc-nopre").checked;
+  const nports = pmode === "all" ? 65535 : (pmode === "top" ? pval : 200);
+  const caps = scanCaps();
+  const PER = 220;                       // МБ на один поток nmap с NSE
+  const need = jobs * PER;
+  const msgs = []; let level = "ok";
+  const bump = (lv) => { const o = { ok: 0, warn: 1, block: 2 }; if (o[lv] > o[level]) level = lv; };
+  if (timing >= 5) { msgs.push("⚡ -T5 (insane) — очень шумно, IDS/цель заметят и могут резать"); bump("warn"); }
+  if (nports >= 65535) { msgs.push("📡 все 65535 портов — долго и шумно; для CTF хватает топ-1000"); bump("warn"); }
+  if (nopre) { msgs.push("🔊 --no-preflight — без мягкой разведки, агрессивнее"); bump("warn"); }
+  if (caps.mem) {
+    if (need > caps.mem * 0.85) { msgs.push("💥 -j " + jobs + " × ~" + PER + "МБ ≈ " + need + "МБ, а у слабейшего агента всего " + caps.mem + "МБ RAM → OOM/зависание"); bump("block"); }
+    else if (need > caps.mem * 0.6) { msgs.push("⚠ -j " + jobs + " нагрузит память агента (" + caps.mem + "МБ) — на грани"); bump("warn"); }
+    if (caps.cpu && jobs > caps.cpu * 2) { msgs.push("⚠ -j " + jobs + " при " + caps.cpu + " CPU агента — перегруз процессора"); bump("warn"); }
+  } else if (jobs > 4) { msgs.push("⚠ -j " + jobs + " высоковат — на слабой ноде риск OOM"); bump("warn"); }
+  SCAN_BLOCKED = (level === "block");
+  const opt = caps.mem ? Math.max(1, Math.floor(caps.mem * 0.6 / PER)) : 2;
+  if (!msgs.length) {
+    el.innerHTML = '<div class="adv adv-ok">✓ параметры в норме' + (caps.mem ? " · агент " + caps.mem + "МБ, оптимум -j ≤ " + opt : "") + "</div>";
+  } else {
+    el.innerHTML = '<div class="adv adv-' + (level === "block" ? "block" : "warn") + '">' +
+      (level === "block" ? "<b>🚫 ОПАСНО для железа — запуск будет заблокирован:</b><br>" : "<b>⚠ Внимание:</b><br>") +
+      msgs.map((m) => "· " + m).join("<br>") +
+      (caps.mem ? '<br><span class="muted">рекомендую -j ≤ ' + opt + " для агента " + caps.mem + "МБ</span>" : "") + "</div>";
+  }
+}
+["sc-ports-mode", "sc-ports-val", "sc-timing", "sc-jobs", "sc-nopre", "sc-pn"].forEach((id) => {
+  const e = $("#" + id); if (e) { e.addEventListener("input", scanAdvice); e.addEventListener("change", scanAdvice); }
+});
+
 $("#sc-start").addEventListener("click", async () => {
+  scanAdvice();
+  if (SCAN_BLOCKED) {
+    $("#scan-result").innerHTML = '<div class="adv adv-block">🚫 Стоп, бро. Эти параметры положат агента (OOM). Скан НЕ запущен — снизь параллелизм/порты (см. предупреждение выше).</div>';
+    return;
+  }
   const opts = { ports: { mode: $("#sc-ports-mode").value, value: $("#sc-ports-val").value },
     timing: +$("#sc-timing").value, jobs: +$("#sc-jobs").value,
     no_udp: $("#sc-noudp").checked, no_tcp: $("#sc-notcp").checked,
@@ -265,7 +314,7 @@ $("#sc-start").addEventListener("click", async () => {
     $("#scan-result").textContent = "джоба запущена: " + r.job_id + "\nсмотри «Обзор» и «Отчёты» — чанки разъезжаются по агентам";
   } catch (e) { $("#scan-result").textContent = "ошибка: " + e.message; }
 });
-TAB_LOADERS.scan = async () => { try { const jobs = await api("/jobs"); $("#sc-diff").innerHTML = '<option value="">— нет —</option>' + jobs.map((j) => `<option value="${j.id}">${j.id}</option>`).join(""); } catch (e) {} };
+TAB_LOADERS.scan = async () => { scanAdvice(); try { const jobs = await api("/jobs"); $("#sc-diff").innerHTML = '<option value="">— нет —</option>' + jobs.map((j) => `<option value="${j.id}">${j.id}</option>`).join(""); } catch (e) {} };
 
 // ── ОТЧЁТЫ ──────────────────────────────────────────────────────────────────
 TAB_LOADERS.reports = loadJobs;

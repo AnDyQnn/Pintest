@@ -128,10 +128,14 @@ def _awg_status() -> Dict:
 
 def _metrics() -> Dict:
     if not psutil:
-        return {"cpu": 0.0, "mem": 0.0}
+        return {"cpu": 0.0, "mem": 0.0, "mem_total_mb": 0, "mem_avail_mb": 0, "cpu_count": 1}
+    vm = psutil.virtual_memory()
     return {
         "cpu": psutil.cpu_percent(interval=None),
-        "mem": psutil.virtual_memory().percent,
+        "mem": vm.percent,
+        "mem_total_mb": round(vm.total / 1048576),
+        "mem_avail_mb": round(vm.available / 1048576),
+        "cpu_count": psutil.cpu_count() or 1,
     }
 
 
