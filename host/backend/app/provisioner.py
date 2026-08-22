@@ -26,7 +26,7 @@ REMOTE_DEPLOY_SH = "/tmp/pintest-deploy.sh"
 REMOTE_DEPLOY_TGZ = "/tmp/pintest-deploy.tgz"
 REMOTE_DEPLOY_AWG = "/tmp/pintest-awg0.conf"
 _DEPLOY_DIRS = ("agent", "core", "exploits", "awg-base")
-_DEPLOY_SKIP = ("/state", "/.git", "config.env", "__pycache__", ".armed")
+_DEPLOY_SKIP = ("/state", "/.git", ".env", "__pycache__", ".armed")
 
 
 @dataclass

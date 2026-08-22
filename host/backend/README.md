@@ -24,4 +24,4 @@
 
 ## Запуск
 Через `docker compose` (см. [../docker-compose.yml](../docker-compose.yml) или [../../lab/](../../lab/)).
-Локально: `uvicorn app.main:app` с выставленными ENV из [../config.example.env](../config.example.env).
+Локально: `uvicorn app.main:app` с выставленными ENV из [../.env.example](../.env.example).

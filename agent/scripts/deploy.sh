@@ -70,7 +70,7 @@ tar -xzf "$BUNDLE" -C "$ROOT"
 rm -f "$BUNDLE"
 
 # per-node конфиг ноды (имя + адрес хоста в туннеле)
-cat > "$ROOT/agent/config.env" <<EOF
+cat > "$ROOT/agent/.env" <<EOF
 AGENT_NAME=${NAME}
 HOST_TUNNEL_IP=${HOSTIP}
 AGENT_SSH_USER=root
@@ -80,10 +80,10 @@ EOF
 echo "[deploy] собираю образы из копии (awg-base + agent), без клонирования"
 docker build -t pintest-awg-base:latest "$ROOT/awg-base"
 cd "$ROOT/agent"
-docker compose --env-file config.env up -d --build
+docker compose up -d --build
 
 # инъекция туннеля в контейнер + взвод dead-man (локально, без второго SSH)
-CID="$(docker compose --env-file config.env ps -q agent 2>/dev/null || docker ps -q -f name=pintest-agent)"
+CID="$(docker compose ps -q agent 2>/dev/null || docker ps -q -f name=pintest-agent)"
 [ -n "$CID" ] || { echo "[deploy] контейнер-агент не найден после up"; exit 3; }
 docker exec "$CID" mkdir -p /etc/amnezia/amneziawg
 docker cp "$AWGCONF" "$CID":/etc/amnezia/amneziawg/awg0.conf

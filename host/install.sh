@@ -14,7 +14,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 # shellcheck source=/dev/null
 . "$HERE/lib.sh"
-CFG="$HERE/config.env"
+CFG="$HERE/.env"
 
 FRESH="${PINTEST_FRESH:-0}"
 [ "${1:-}" = "--fresh" ] && FRESH=1
@@ -88,11 +88,11 @@ harden_fail2ban(){
 }
 
 fresh_wipe(){
-  ( cd "$HERE" && { docker compose --env-file config.env down -v || docker compose down || true; } )
+  ( cd "$HERE" && { docker compose down -v || docker compose down || true; } )
   rm -rf "$HERE/data"
 }
 
-stack_up(){ ( cd "$HERE" && docker compose --env-file config.env up -d --build ); }
+stack_up(){ ( cd "$HERE" && docker compose up -d --build ); }
 
 # systemd-сервис для кнопки «Обновить хост» в вебке: демон ловит маркер и обновляет
 # хост (git + пересборка с откатом). Без него кнопка пишет заявку, а исполнять некому.
@@ -130,9 +130,21 @@ else
 fi
 step_soft "автозапуск Docker при ребуте" systemctl enable --now docker
 
-# 2) config.env — создать/мягко дополнить (не трогая значения)
+# 2) .env — создать/мягко дополнить (не трогая значения)
 title "конфигурация"
-merge_config "$HERE/config.example.env" "$CFG"
+merge_config "$HERE/.env.example" "$CFG"
+
+# креды админки — задаём ПРИ УСТАНОВКЕ (пишутся в .env до старта → применяются сразу
+# через seed_admin; не надо редактировать .env после и пересоздавать контейнеры).
+_cu="$(get_config ADMIN_USER "$CFG")"; [ -z "$_cu" ] && _cu=admin
+_cp="$(get_config ADMIN_PASSWORD "$CFG")"; [ -z "$_cp" ] && _cp=admin
+if [ -t 0 ] && [ "${PINTEST_NONINTERACTIVE:-0}" != "1" ]; then
+  printf '  %sлогин админки%s [%s%s%s]: ' "$C_C" "$C_N" "$C_B" "$_cu" "$C_N"; read -r _u || _u=""
+  printf '  %sпароль админки%s [%s%s%s]: ' "$C_C" "$C_N" "$C_B" "$_cp" "$C_N"; read -r _p || _p=""
+  set_config ADMIN_USER "${_u:-$_cu}" "$CFG"
+  set_config ADMIN_PASSWORD "${_p:-$_cp}" "$CFG"
+fi
+ok "админка: логин ${C_B}$(get_config ADMIN_USER "$CFG")${C_N} (в .env)"
 
 # 3) SSH-порт — задаётся при установке. Enter = оставить текущий; другой порт —
 #    sshd РЕАЛЬНО переносится на него (sed Port + маскировка ssh.socket), и только
@@ -164,7 +176,7 @@ if [ "$SSH_PORT" != "$CUR_PORT" ]; then
     note "проверь: sshd -t; systemctl status ssh; ss -tlnp | grep ssh"
   fi
 else
-  ok "SSH-порт: ${C_B}${SSH_PORT}${C_N} (текущий, записан в config.env)"
+  ok "SSH-порт: ${C_B}${SSH_PORT}${C_N} (текущий, записан в .env)"
 fi
 
 # 4) Хардненинг
@@ -218,7 +230,7 @@ title "готово"
 if [ -f "$BOOT" ]; then
   ok "первый вход (VPN): импортируй в AmneziaWG-клиент конфиг:"
   note "$BOOT"
-  info "затем открой вебку по туннелю и войди под кредами из config.env (ADMIN_USER/ADMIN_PASSWORD)"
+  info "затем открой вебку по туннелю и войди под кредами из .env (ADMIN_USER/ADMIN_PASSWORD)"
 else
   warn "bootstrap-конфиг ещё не готов — появится в host/data/bootstrap-admin.conf"
   note "либо создай админ-конфиг во вкладке «VPN» после первого входа"

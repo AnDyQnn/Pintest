@@ -16,9 +16,9 @@ def _hash(password: str) -> str:
 
 
 def seed_admin() -> None:
-    """config.env — ИСТОЧНИК ИСТИНЫ для админ-аккаунта. На КАЖДОМ старте гарантируем,
+    """.env — ИСТОЧНИК ИСТИНЫ для админ-аккаунта. На КАЖДОМ старте гарантируем,
     что логин ADMIN_USER существует с паролем ADMIN_PASSWORD (UPSERT). Значит:
-    поменял креды в config.env + рестарт контейнеров = входишь под новыми кредами.
+    поменял креды в .env + рестарт контейнеров = входишь под новыми кредами.
     Аккаунты, созданные в вебке (другие логины), не трогаем."""
     db.q("INSERT INTO users(login, pw_hash) VALUES(%s,%s) "
          "ON CONFLICT (login) DO UPDATE SET pw_hash = EXCLUDED.pw_hash",

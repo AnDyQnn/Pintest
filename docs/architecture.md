@@ -325,15 +325,15 @@ erDiagram
 
 - **Хост:** `sudo bash host/install.sh` — Docker → хардненинг → сборка стека. Цветной пошаговый
   вывод (шумный apt/docker — в `/tmp/pintest-setup.log`); общий `host/lib.sh` (шаги, мягкий мерж
-  `config.env`, `detect_ssh_port`). PG17; `--fresh` = чистый старт (снести `host/data`).
+  `.env`, `detect_ssh_port`). PG17; `--fresh` = чистый старт (снести `host/data`).
 - **SSH-порт при установке:** можно перенести sshd на нестандартный порт — `sed Port` +
   **маскировка `ssh.socket`** (иначе socket-активация Ubuntu 24.04 вернёт 22 после апдейта);
   ufw включается только после подтверждения (`ss`), что порт слушает — **без лок-аута**.
 - **Хардненинг:** ufw (SSH-порт + 80/443 + 51820/udp), fail2ban (`backend=systemd`/journald +
   ignoreip приватных сетей — админ из VPN/LAN себя не забанит), sysctl (SYN-флуд/спуфинг).
   На агент-нодах — тот же fail2ban+ufw из `deploy.sh` под её реальный SSH-порт (от root).
-- **Мягкий мерж `config.env`:** install/update дописывают в существующий конфиг только
-  недостающие ключи из `config.example.env`, не трогая значения.
+- **Мягкий мерж `.env`:** install/update дописывают в существующий конфиг только
+  недостающие ключи из `.env.example`, не трогая значения.
 
 ## Переносимость
 

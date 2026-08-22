@@ -4,7 +4,7 @@
 #
 #  Механика:
 #    • git fetch + git reset --hard <remote>/<branch>  (жёсткий сброс на git)
-#    • мягкий мерж config.env (дописать новые ключи, значения не трогаем)
+#    • мягкий мерж .env (дописать новые ключи, значения не трогаем)
 #    • docker compose up -d --build                    (пересборка+перезапуск)
 #    • при ЛЮБОЙ ошибке — авто-откат на прежний коммит + пересборка
 #
@@ -25,7 +25,7 @@ ROOT="$(cd "$HERE/.." && pwd)"
 fail(){ err "$*"; exit 1; }
 
 COMPOSE="docker compose -f $HERE/docker-compose.yml"
-[ -f "$HERE/config.env" ] && COMPOSE="$COMPOSE --env-file $HERE/config.env"
+[ -f "$HERE/.env" ] && COMPOSE="$COMPOSE --env-file $HERE/.env"
 BRANCH="${PINTEST_BRANCH:-$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)}"
 REMOTE="${PINTEST_REMOTE:-origin}"
 MARKER="$HERE/data/.update-request"
@@ -67,7 +67,7 @@ do_update() {
   fi
   ok "код обновлён: ${prev:0:12} → ${new:0:12}"
 
-  merge_config "$HERE/config.example.env" "$HERE/config.env"   # мягко дописать новые ключи
+  merge_config "$HERE/.env.example" "$HERE/.env"   # мягко дописать новые ключи
 
   step "пересобираю и поднимаю стек" compose_up
   trap - ERR

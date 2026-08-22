@@ -22,10 +22,10 @@ sudo bash install.sh     # Docker + ufw/fail2ban + PG17 + стек; --fresh = ч
 | [`vpn/`](vpn/) | AmneziaWG-сервер + внутренний control-API (пиры/ключи/endpoint). |
 | [`fail2ban/`](fail2ban/) | Защита хоста от перебора SSH (в реале ставится на сам сервер). |
 | `docker-compose.yml` | Стек хоста для реального сервера. |
-| `install.sh` | Bootstrap: Docker + хардненинг + config.env + запуск. |
-| `config.example.env` | Шаблон конфигурации (копируется в `config.env`; всё поведение — через ENV). |
+| `install.sh` | Bootstrap: Docker + хардненинг + .env + запуск. |
+| `.env.example` | Шаблон конфигурации (копируется в `.env`; всё поведение — через ENV). |
 
-## Ключевые ENV (полный список — в `config.example.env` и `backend/app/config.py`)
+## Ключевые ENV (полный список — в `.env.example` и `backend/app/config.py`)
 `ADMIN_USER/ADMIN_PASSWORD` (UPSERT на каждом старте), `SESSION_SECRET`, `SSH_PORT` (хардненинг),
 `AWG_ENDPOINT` (опц., авто), `AWG_LISTEN_PORT`, `ADMIN_VPN_FULL_TUNNEL`/`ADMIN_VPN_DNS` (интернет
 через VPN), `BACKUP_KEEP`, `CHUNK_SIZE`, `HEARTBEAT_INTERVAL/MISS`, `LIVE_INTERVAL`, `DB_DSN`, `DATA_DIR`.

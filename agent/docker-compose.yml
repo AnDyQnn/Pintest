@@ -19,7 +19,7 @@ services:
     devices:
       - /dev/net/tun
     env_file:
-      - config.env
+      - .env
     ports:
       - "2222:22"            # SSH для provisioning с хоста
       - "9101:9101"          # API агента (в реале доступен только по туннелю)

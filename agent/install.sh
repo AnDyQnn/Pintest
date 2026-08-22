@@ -31,9 +31,9 @@ https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CO
 fi
 
 # 2) конфиг ноды
-if [ ! -f "$HERE/config.env" ]; then
-  cp "$HERE/config.example.env" "$HERE/config.env"
-  echo "[install] создан agent/config.env — проверь AGENT_SSH_PASSWORD и HOST_TUNNEL_IP"
+if [ ! -f "$HERE/.env" ]; then
+  cp "$HERE/.env.example" "$HERE/.env"
+  echo "[install] создан agent/.env — проверь AGENT_SSH_PASSWORD и HOST_TUNNEL_IP"
 fi
 
 # 3) общий образ AmneziaWG + образ агента (тот же, что в лабе)
@@ -42,6 +42,6 @@ docker build -t pintest-awg-base:latest "$ROOT/awg-base"
 
 echo "[install] поднимаю ноду-агента…"
 cd "$HERE"
-docker compose --env-file config.env up -d --build
+docker compose --env-file .env up -d --build
 
 echo "== готово. Нода поднята. Провижнинг (SSH + вброс ключа) делается с хоста из вебки. =="

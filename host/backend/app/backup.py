@@ -257,7 +257,7 @@ def restore(name: str) -> Dict:
             except Exception:  # noqa: BLE001
                 pass
 
-    # 5) не залочиться: гарантируем админа из config.env (UPSERT)
+    # 5) не залочиться: гарантируем админа из .env (UPSERT)
     try:
         users.seed_admin()
     except Exception:  # noqa: BLE001
