@@ -46,6 +46,10 @@ DEADMAN_BOOT_GRACE = int(os.environ.get("DEADMAN_BOOT_GRACE", "45"))
 # пересоздании контейнера (полный редеплой -> нода ждёт нового provision, не нукается зря).
 ARMED_FLAG = AGENT_DIR / ".armed"       # взведён ли dead-man (ставится после provision)
 TOMBSTONE = PINTEST_ROOT / "DESTROYED"  # маркер после самоуничтожения
+# ПАУЗА dead-man: хост создаёт её перед ПЛАНОВЫМ простоем (ребут/обновление хоста) —
+# внутри файла epoch, до которого self-destruct отключён. Так плановый простой хоста
+# не убивает агентов. Файл в ФС контейнера (переживает stop/start, чистится при пересоздании).
+PAUSE_FLAG = AGENT_DIR / ".deadman-pause"
 
 VERSION = os.environ.get("PINTEST_VERSION", "0.7.0")
 AGENT_NAME = os.environ.get("AGENT_NAME", os.environ.get("HOSTNAME", "agent"))

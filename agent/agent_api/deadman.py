@@ -29,6 +29,7 @@ def status() -> dict:
         "timeout": config.DEADMAN_TIMEOUT,
         "arm_grace": config.DEADMAN_ARM_GRACE,
         "since_ok": round(time.time() - _state["last_ok"], 1) if _state["last_ok"] else None,
+        "paused": _paused(),
     }
 
 
@@ -58,6 +59,30 @@ def _handshake_fresh() -> bool:
 
 def _reachable() -> bool:
     return _ping_ok() or _handshake_fresh()
+
+
+def _paused() -> bool:
+    """Активна ли ПЛАНОВАЯ пауза (хост объявил простой). Истёкший флаг чистим."""
+    try:
+        if config.PAUSE_FLAG.exists():
+            until = float((config.PAUSE_FLAG.read_text() or "0").strip() or 0)
+            if time.time() < until:
+                return True
+            config.PAUSE_FLAG.unlink(missing_ok=True)
+    except (OSError, ValueError):
+        pass
+    return False
+
+
+def pause(seconds: int) -> dict:
+    """Отложить self-destruct на seconds (хост зовёт перед ребутом/обновлением себя)."""
+    until = time.time() + max(0, int(seconds))
+    try:
+        config.PAUSE_FLAG.parent.mkdir(parents=True, exist_ok=True)
+        config.PAUSE_FLAG.write_text(str(until))
+    except OSError:
+        pass
+    return {"paused": True, "until": until, "seconds": int(seconds)}
 
 
 def self_destruct(reason: str = "dead-man") -> None:
@@ -93,6 +118,11 @@ def _loop() -> None:
     if not _boot_check():
         return
     while True:
+        if _paused():                                     # ПЛАНОВЫЙ простой хоста — не самоуничтожаемся
+            _state["reachable"] = True
+            _state["last_ok"] = time.time()               # таймаут стартует заново после паузы
+            time.sleep(config.DEADMAN_INTERVAL)
+            continue
         armed = config.ARMED_FLAG.exists()
         ok = _reachable()
         _state["reachable"] = ok

@@ -595,6 +595,12 @@ async def api_update_host(body: HostUpdateIn, _: bool = Depends(require_auth)):
     return await run_in_threadpool(updates.host_update_git)
 
 
+@app.post("/api/maintenance/pause")
+async def api_maintenance_pause(minutes: int = 20, _: bool = Depends(require_auth)):
+    """Объявить агентам плановый простой (перед ручным ребутом хоста) — не самоуничтожатся."""
+    return await run_in_threadpool(agents.pause_deadman_all, minutes)
+
+
 @app.get("/api/update/status")
 async def api_update_status(_: bool = Depends(require_auth)):
     return await run_in_threadpool(updates.host_update_status)

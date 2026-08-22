@@ -41,6 +41,13 @@ def host_update_status() -> Dict:
 
 def host_update_git() -> Dict:
     try:
+        # объявить агентам плановый простой — иначе dead-man убьёт их, пока хост
+        # пересобирается (тунель падает). 20 минут с запасом на git+build.
+        try:
+            from . import agents
+            agents.pause_deadman_all(20)
+        except Exception:  # noqa: BLE001
+            pass
         # автобэкап ПЕРЕД обновлением (как в gateway update — есть куда откатиться)
         pre = ""
         try:

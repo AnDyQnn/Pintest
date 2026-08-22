@@ -85,6 +85,22 @@ def _probe(tunnel_ip: str) -> bool:
         return False
 
 
+def pause_deadman_all(minutes: int = 15) -> Dict:
+    """Объявить агентам ПЛАНОВЫЙ простой хоста — отложить self-destruct на minutes.
+    Зовётся ПЕРЕД ребутом/обновлением хоста, чтобы агенты не нукались зря."""
+    n = 0
+    for a in list_agents():
+        if a.get("status") != "online" or not a.get("tunnel_ip"):
+            continue
+        try:
+            httpx.post(_base(a["tunnel_ip"]) + "/deadman/pause",
+                       json={"minutes": int(minutes)}, timeout=5)
+            n += 1
+        except Exception:  # noqa: BLE001
+            pass
+    return {"paused_agents": n, "minutes": int(minutes)}
+
+
 def reconcile_peers() -> Dict:
     """Снять с awg-сервера ВИСЯЧИЕ пиры — те, чей pubkey не принадлежит ни живому
     агенту, ни админ-конфигу (напр. остались от уничтоженных нод). Само-лечение

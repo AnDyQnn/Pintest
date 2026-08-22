@@ -30,6 +30,10 @@ _BOOT = time.time()
 
 
 # ------------------------------- модели ------------------------------------
+class PauseIn(BaseModel):
+    minutes: int = 15
+
+
 class ChunkIn(BaseModel):
     job_id: str
     chunk_id: str
@@ -153,6 +157,12 @@ def health():
 @app.get("/awg")
 def awg():
     return _awg_status()
+
+
+@app.post("/deadman/pause")
+def deadman_pause(body: PauseIn):
+    """Плановая пауза self-destruct (хост зовёт перед своим ребутом/обновлением)."""
+    return deadman.pause(int(body.minutes) * 60)
 
 
 @app.post("/chunk")
