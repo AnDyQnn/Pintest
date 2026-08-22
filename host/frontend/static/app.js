@@ -194,12 +194,12 @@ TAB_LOADERS.agents = loadAgents;
 async function loadAgents() { try { renderAgentsLive(await api("/agents")); } catch (e) {} prefillAgentPort(); }
 // Порт новой ноды «подсасывается» сам: последний введённый (localStorage) → SSH-порт
 // хоста (обычно все серверы на одном порту) → 22. Поле не трогаем, если юзер уже вписал.
-async function prefillAgentPort() {
+function prefillAgentPort() {
+  // подставляем ТОЛЬКО последний введённый порт (память); иначе поле пустое —
+  // placeholder показывает 22 (дефолтный SSH). Порт ХОСТА тут ни при чём:
+  // это порт SSH самого агент-сервера, куда хост заходит по SSH.
   const el = $("#ag-port"); if (!el || el.value.trim()) return;
-  let p = "";
-  try { p = localStorage.getItem("pintest_agent_port") || ""; } catch (e) {}
-  if (!p) { try { const h = await api("/health"); p = h && h.ssh_port ? String(h.ssh_port) : ""; } catch (e) {} }
-  if (p && !el.value.trim()) el.value = p;
+  try { const p = localStorage.getItem("pintest_agent_port") || ""; if (p) el.value = p; } catch (e) {}
 }
 function sparkline(arr) {
   if (!arr || !arr.length) return "";
