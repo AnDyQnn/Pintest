@@ -49,7 +49,7 @@ def _handshake_fresh() -> bool:
         for line in out.splitlines():
             parts = line.split()
             if len(parts) >= 2 and parts[1].isdigit():
-                if time.time() - int(parts[1]) < config.DEADMAN_TIMEOUT:
+                if time.time() - int(parts[1]) < config.DEADMAN_HANDSHAKE_MAX:
                     return True
     except (subprocess.TimeoutExpired, OSError, ValueError):
         pass

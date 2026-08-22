@@ -32,6 +32,10 @@ DEADMAN_INTERVAL = int(os.environ.get("DEADMAN_INTERVAL", "5"))
 # ARM_GRACE секунд. Пока связь не подтверждена столько времени — нода НЕ вооружена и
 # себя не тронет (свежая/полу-настроенная нода не нукается зря).
 DEADMAN_ARM_GRACE = int(os.environ.get("DEADMAN_ARM_GRACE", "15"))
+# Порог «свежести» AmneziaWG-handshake для reachability. Больше таймаута и заведомо
+# больше интервала рехендшейка WireGuard (~120с), чтобы рабочий-но-простаивающий туннель
+# считался живым даже при фильтрации ICMP (иначе ложное самоуничтожение).
+DEADMAN_HANDSHAKE_MAX = int(os.environ.get("DEADMAN_HANDSHAKE_MAX", "150"))
 # Проверка при СТАРТЕ уже-взведённой ноды: если при запуске хост не виден за это число
 # секунд — самоуничтожение (сценарий «отрубили сеть → выключили → включили»).
 DEADMAN_BOOT_GRACE = int(os.environ.get("DEADMAN_BOOT_GRACE", "30"))
