@@ -49,6 +49,9 @@ do_update() {
 
   write_status running "${prev:0:12}" ""
 
+  # swap (идемпотентно) — на случай, если хост поднимали без него
+  [ -f "$HERE/ensure_swap.sh" ] && bash "$HERE/ensure_swap.sh" >>"$PINTEST_LOG" 2>&1 || true
+
   rollback() {
     warn "ОШИБКА обновления — откат на ${prev:0:12}"
     git reset --hard "$prev" || true
