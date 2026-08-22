@@ -467,11 +467,15 @@ def _safe_parallel(requested: int) -> int:
                 if line.startswith("MemAvailable:"):
                     avail = int(line.split()[1]) // 1024
                     break
-        if avail:
-            cap = max(1, avail // 250)
-            if requested > cap:
-                print(f"  [защита] -j {requested} > безопасного {cap} (RAM {avail} МБ) — снижаю до {cap}")
-                return cap
+        # кап по RAM (~250 МБ на поток nmap+NSE)
+        cap_mem = max(1, avail // 250) if avail else requested
+        # кап по CPU: на 1-ядре нет смысла в параллельных nmap (конкуренция за CPU)
+        import os as _o
+        cap_cpu = max(1, _o.cpu_count() or 1)
+        cap = min(cap_mem, cap_cpu)
+        if requested > cap:
+            print(f"  [защита] -j {requested} > безопасного {cap} (RAM {avail} МБ, CPU {cap_cpu}) — снижаю до {cap}")
+            return cap
     except OSError:
         pass
     return max(1, int(requested))
